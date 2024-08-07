@@ -24,10 +24,16 @@ data from https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_TS_SP.001/2020.04.27/
 https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_iop_pits.py
 https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_sbb_depths.py
 https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_snow_depths.py
+Might be of use for snowpit import and visualizing:
+https://github.com/SnowpitData/Snowpilot
+https://github.com/ArcticSnow/snowpyt
 
 SMP
     https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_smp.py
     https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/resample_smp.py
+Might be of use for SMP importing and visualizing: 
+ https://github.com/cryogars/BSU-micropen
+ https://github.com/m9brady/SMP_to_CSV
 
 Maybe not
     https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_snow_poles.py

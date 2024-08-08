@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 import logging
+from dataclasses import field
 import pandas as pd
 import pytz
 import utm
@@ -21,6 +22,7 @@ class ProfileMetaData:
     utm_epsg: str = None  # the EPSG for the utm zone
     site_id: str = None
     site_name: str = None
+    units: dict = field(default_factory= lambda: {})
     flags: str = None
 
 
@@ -344,6 +346,7 @@ class MetaDataParser:
             utm_epsg=self.parse_utm_epsg(),
             site_id=self.parse_site_id(),
             site_name=self.parse_site_name(),
+            units = self.parse_units(),
             flags=self.parse_flags(),
         )
 

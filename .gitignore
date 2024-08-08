@@ -105,3 +105,6 @@ ENV/
 .vscode/
 .idea/
 scratch/
+
+#contributor folders
+contrib/

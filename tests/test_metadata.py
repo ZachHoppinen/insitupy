@@ -5,10 +5,17 @@ from insitupy.campaigns.metadata import MetaDataParser
 
 
 @pytest.mark.parametrize(
-    "fname", [
-        "SNEX20_TS_SP_20200427_0845_COERAP_data_density_v01.csv",
-        "SNEX20_TS_SP_20200427_0845_COERAP_data_LWC_v01.csv",
-        "SNEX20_TS_SP_20200427_0845_COERAP_data_temperature_v01.csv"
+    "fname, expected", [
+        ("SNEX20_TS_SP_20200427_0845_COERAP_data_density_v01.csv",
+         'COERAP_20200427_0845'),
+        ("SNEX20_TS_SP_20200427_0845_COERAP_data_LWC_v01.csv",
+        "COERAP_20200427_0845"),
+        ("SNEX20_TS_SP_20200427_0845_COERAP_data_temperature_v01.csv",
+        "COERAP_20200427_0845"),
+        ("SnowEx20_SnowPits_GMIOP_20200203_GML_density_v01.csv",
+        "GMIOP_20200203")
+        # "SnowEx20_SnowPits_GMIOP_20200203_GML_stratigraphy_v01.csv",
+        # "SnowEx20_SnowPits_GMIOP_20200203_GML_temperature_v01.csv"
     ]
 )
 class TestSnowexPitMetadata:
@@ -40,34 +47,34 @@ class TestSnowexPitMetadata:
 
     # fname needs to be in test since it is a class
     # level parameterization
-    def test_id(self, metadata, fname):
-        assert metadata.id == "COERAP_20200427_0845"
+    def test_id(self, metadata, expected, fname):
+        assert metadata.id == expected
 
-    def test_date_time(self, metadata, fname):
+    def test_date_time(self, metadata, expected, fname):
         # converted from mountain time
         assert metadata.date_time == pd.to_datetime(
             "2020-04-27T14:45:00+0000"
         )
 
-    def test_latitude(self, metadata, fname):
+    def test_latitude(self, metadata, expected, fname):
         assert metadata.latitude == 38.92524
 
-    def test_longitude(self, metadata, fname):
+    def test_longitude(self, metadata, expected, fname):
         assert metadata.longitude == -106.97112
 
-    def test_utm_epsg(self, metadata, fname):
+    def test_utm_epsg(self, metadata, expected, fname):
         assert metadata.utm_epsg == 26913
 
-    def test_site_id(self, metadata, fname):
+    def test_site_id(self, metadata, expected, fname):
         assert metadata.site_id == "Aspen"
 
-    def test_site_name(self, metadata, fname):
+    def test_site_name(self, metadata, expected, fname):
         assert metadata.site_name == "East River"
 
-    def test_flags(self, metadata, fname):
+    def test_flags(self, metadata, expected, fname):
         assert metadata.flags is None
 
-    def test_header_position(self, header_pos, fname):
+    def test_header_position(self, header_pos, expected, fname):
         assert header_pos == 10
 
 

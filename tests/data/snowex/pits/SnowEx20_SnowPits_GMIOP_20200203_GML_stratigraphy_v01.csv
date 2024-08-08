@@ -1,0 +1,14 @@
+# Location,Grand Mesa
+# Site,GML
+# PitID,COGMGML_20200203
+# Date/Local Time,2020-02-03T14:00
+# UTM Zone,12N
+# Easting,759386
+# Northing,4325399
+# Top (cm),Bottom (cm),Grain Size (mm),Grain Type,Hand Hardness,Manual Wetness,Comments
+116.0,96.5,< 1 mm,DF,F,D,Some rounds
+96.5,71.0,< 1 mm,RG,4F,D,NaN
+71.0,57.0,< 1 mm,FC,1F,D,Rounding facets
+57.0,45.0,1-2 mm,FC,4F,D,NaN
+45.0,9.0,1-2 mm,FC,1F,D,NaN
+9.0,0.0,2-4 mm,FC,1F,D,NaN

@@ -21,7 +21,6 @@ class ProfileMetaData:
     utm_epsg: str = None  # the EPSG for the utm zone
     site_id: str = None
     site_name: str = None
-    vertical_units: str = None
     flags: str = None
 
 
@@ -36,6 +35,8 @@ class MetaDataParser:
     LAT_NAMES = ["lat", "latitude"]
     LON_NAMES = ["lon", "lon", "longitude", "long"]
     UTM_EPSG_PREFIX = "269"
+    # if adding units they should start with least complex to most complex
+    UNITS = [ "m", "cm", "mm","km", "kg", "kg/m3", "%", "deg C", "deg F", "g/cm"]
     NORTHERN_HEMISPHERE = True
     VARIABLES_CLASS = ProfileVariables
 
@@ -60,12 +61,19 @@ class MetaDataParser:
         self._header_sep = header_sep
         self._rough_obj = {}
         self._lat_lon_easting_northing = None
+        self._units = None
 
         self._allow_split_header_lines = allow_split_lines
 
     @property
     def rough_obj(self):
         return self._rough_obj
+
+    @property
+    def units(self):
+        if self._units is None:
+            self._units = self._parse_units()
+        return self._units
 
     @property
     def lat_lon_easting_northing(self):
@@ -326,7 +334,6 @@ class MetaDataParser:
         LOG.debug(
             f'Discovered the following metadata entries: {self.rough_obj}'
         )
-        print(self.rough_obj)
         
         # Create a standard metadata object
         metadata = ProfileMetaData(
@@ -379,7 +386,6 @@ class MetaDataParser:
         """
         # Parse the columns header based on the size of the last line
         # Remove units
-        print(str_line)
         for c in ['()', '[]']:
             str_line = StringManager.strip_encapsulated(str_line, c)
 
@@ -424,6 +430,7 @@ class MetaDataParser:
         # Find the column names and where it is in the file
         else:
             header_pos, header_indicator = self._find_header_position(lines)
+
             columns = self._parse_columns(lines[header_pos])
             LOG.debug(
                 f'Column Data found to be {len(columns)} columns based on'
@@ -553,3 +560,37 @@ class MetaDataParser:
         else:
 
             raise RuntimeError(f"Unable to parse UTM EPGS from {self.rough_obj}")
+
+    def parse_units(self):
+        """
+        Parse out unit information from columns
+
+        Args:
+
+        Returns:
+        dict: units: a dictionary of column name and units
+        """
+
+        _units = {}
+
+        if not self._fname:
+            raise RuntimeError("No file found to parse units from.")
+        
+        with open(self._fname, encoding='latin') as fp:
+            lines = fp.readlines()
+
+        header_pos, header_indicator = self._find_header_position(lines)
+
+        raw_cols = lines[header_pos].strip('#').split(',')
+        clean_cols = self._parse_columns(lines[header_pos])
+        for clean, raw in zip(clean_cols, raw_cols):
+            # gets tripped up on the mm in comments
+            if 'comment' in clean: continue
+
+            for unit_name in self.UNITS:
+                if unit_name in raw:
+                    _units[clean] = unit_name
+        
+
+        return _units
+                    

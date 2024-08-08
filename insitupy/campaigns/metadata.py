@@ -53,6 +53,8 @@ class MetaDataParser:
                 that character will be combined with the previous line
         """
         self._fname = fname
+
+        #TODO set up automated time zone based on location
         self._input_timezone = timezone
         self._header_sep = header_sep
         self._rough_obj = {}
@@ -208,9 +210,9 @@ class MetaDataParser:
             elif k in self.LON_NAMES:
                 lon = float(v)
             elif k == "easting":
-                easting = v
+                easting = float(v)
             elif k == "northing":
-                northing = v
+                northing = float(v)
 
         # Do nothing first
         if lat and lon and easting and northing:
@@ -225,6 +227,7 @@ class MetaDataParser:
             pass
         elif easting and northing:
             zone_number = self.parse_utm_epsg()[-2:]
+            LOG.debug(f"Found utm zone number: {zone_number}")
             lat, lon = utm.to_latlon(
                 easting, northing, int(zone_number),
                 northern=self.NORTHERN_HEMISPHERE)
@@ -318,6 +321,12 @@ class MetaDataParser:
         """
         meta_lines, columns, header_position = self.find_header_info(self._fname)
         self._rough_obj = self._preparse_meta(meta_lines)
+        
+        LOG.debug(
+            f'Discovered the following metadata entries: {self.rough_obj}'
+        )
+        print(self.rough_obj)
+        
         # Create a standard metadata object
         metadata = ProfileMetaData(
             id=self.parse_id(),
@@ -402,7 +411,6 @@ class MetaDataParser:
         filename = str(filename)
         with open(filename, encoding='latin') as fp:
             lines = fp.readlines()
-            fp.close()
 
         # Site description files have no need for column lists
         if 'site' in filename.lower():
@@ -504,3 +512,42 @@ class MetaDataParser:
 
         LOG.debug('Found end of header at line {}...'.format(header_pos))
         return header_pos, header_indicator
+
+    def parse_utm_epsg(self):
+        """
+        Finds UTM zone from metadata. Either parses it directly or infers it from
+        lat/long.
+
+        Assumptions:
+        1. If only 2 digits are given we are use self.UTM_EPSG_PREFIX
+
+        Args:
+
+        Returns:
+            five digit utm zone
+        """
+        utm_zone = None
+
+        if "utm_zone" in self.rough_obj:
+
+            utm_zone = self.rough_obj["utm_zone"]
+            # cut out N and S letters
+            if isinstance(utm_zone, str): utm_zone = utm_zone.strip('N').strip('S')
+            
+            # add our set prefix if we are only given 2 numbers
+            # if len(utm_zone) == 2: utm_zone = f'{self.UTM_EPSG_PREFIX}{utm_zone}'
+            
+            assert len(utm_zone) == 2, f"Invalid utm zone: {utm_zone} found."
+
+            return utm_zone
+        
+        elif self.rough_obj["latitude"] and self.rough_obj["longitude"]:
+            
+            # this is a 2 digit code
+            utm_zone = utm.latlon_to_zone_number(self.rough_obj["latitude"], self.rough_obj["longitude"])
+            
+            return utm_zone
+        
+        else:
+
+            raise RuntimeError(f"Unable to parse UTM EPGS from {self.rough_obj}")

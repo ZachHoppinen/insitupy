@@ -171,6 +171,10 @@ class ProfileVariables(ExtendableVariables):
         "comments", "Comments",
         ["comments"]
     )
+    RECORDTIME = MeasurementDescription(
+        "observation_time", "Time of obseration",
+        ["time_start/end"]
+    )
 
 class SnowExProfileVariables(ProfileVariables):
     COMMENTS = MeasurementDescription(

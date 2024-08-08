@@ -1,0 +1,16 @@
+# Location,Cameron Pass
+# Site,Michigan River
+# PitID,COCPMR_20210527_1145
+# Date/Local Standard Time,2021-05-27T11:45
+# UTM Zone,13N
+# Easting,424470
+# Northing,4485732
+# Latitude,40.51888
+# Longitude,-105.89162
+# Flags,BDG
+# Pit Comments,"11-12 cm of water at base of pit. Below 12 cm pit was saturated with
+standing water. Water temp is 2.18 C.  Flag: BDG"
+# Parameter Codes,n/a for this parameter
+# Top (cm),Bottom (cm),Avg Density (kg/m3),Permittivity A,Permittivity B,LWC-vol A (%),LWC-vol B (%)
+38.0,28.0,408.75,2.584,2.62,4.8,4.99
+28.0,18.0,405.0,2.302,2.674,3.38,5.3

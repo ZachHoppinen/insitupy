@@ -43,7 +43,7 @@ class MetaDataParser:
     VARIABLES_CLASS = ProfileVariables
 
     def __init__(
-        self, fname, timezone, header_sep=",", allow_split_lines=False
+        self, fname, timezone, header_sep=",", allow_split_lines=True
     ):
         """
         Args:

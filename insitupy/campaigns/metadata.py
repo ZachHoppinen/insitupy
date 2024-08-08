@@ -21,6 +21,7 @@ class ProfileMetaData:
     utm_epsg: str = None  # the EPSG for the utm zone
     site_id: str = None
     site_name: str = None
+    vertical_units: str = None
     flags: str = None
 
 
@@ -33,7 +34,7 @@ class MetaDataParser:
     SITE_ID_NAMES = ["site"]
     SITE_NAME_NAMES = ["location"]
     LAT_NAMES = ["lat", "latitude"]
-    LON_NAMES = ["lon", "lon", "longitude"]
+    LON_NAMES = ["lon", "lon", "longitude", "long"]
     UTM_EPSG_PREFIX = "269"
     NORTHERN_HEMISPHERE = True
     VARIABLES_CLASS = ProfileVariables
@@ -378,6 +379,7 @@ class MetaDataParser:
         """
         # Parse the columns header based on the size of the last line
         # Remove units
+        print(str_line)
         for c in ['()', '[]']:
             str_line = StringManager.strip_encapsulated(str_line, c)
 

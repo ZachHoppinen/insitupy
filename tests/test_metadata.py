@@ -13,16 +13,15 @@ pit2dict = {"id": "COGMGML_20200203", "time": "2020-02-03T21:00:00+0000",\
 
 @pytest.mark.parametrize(
     "fname, expected", [
-        ("SNEX20_TS_SP_20200427_0845_COERAP_data_density_v01.csv",
-        pit1dict),
-        ("SNEX20_TS_SP_20200427_0845_COERAP_data_LWC_v01.csv",
-        pit1dict),
-        ("SNEX20_TS_SP_20200427_0845_COERAP_data_temperature_v01.csv",
-        pit1dict),
-        ("SnowEx20_SnowPits_GMIOP_20200203_GML_density_v01.csv",
-        pit2dict)
-        # "SnowEx20_SnowPits_GMIOP_20200203_GML_stratigraphy_v01.csv",
-        # "SnowEx20_SnowPits_GMIOP_20200203_GML_temperature_v01.csv"
+        ("SNEX20_TS_SP_20200427_0845_COERAP_data_density_v01.csv", pit1dict),
+        ("SNEX20_TS_SP_20200427_0845_COERAP_data_LWC_v01.csv", pit1dict),
+        ("SNEX20_TS_SP_20200427_0845_COERAP_data_temperature_v01.csv", pit1dict),
+        # this one doesn't have Lat, long
+        ("SnowEx20_SnowPits_GMIOP_20200203_GML_density_v01.csv", pit2dict),
+        # this one has a column "comments" with no data
+        ("SnowEx20_SnowPits_GMIOP_20200203_GML_stratigraphy_v01.csv", pit2dict),
+        # this one uses "Height (cm)" instead of "Top (cm)"
+        ("SnowEx20_SnowPits_GMIOP_20200203_GML_temperature_v01.csv", pit2dict)
     ]
 )
 class TestSnowexPitMetadata:

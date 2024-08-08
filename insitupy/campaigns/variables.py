@@ -94,6 +94,9 @@ class ProfileVariables(ExtendableVariables):
         result = None
         # Map column name to variable type
         column_mapping = {}
+
+        LOG.debug(f'Searching for: {input_name} variable.')
+
         for entry in cls():
             if entry.map_from and input_name.lower() in entry.map_from:
                 # Remap to code
@@ -118,7 +121,8 @@ class ProfileVariables(ExtendableVariables):
         "depth", "top or center depth of measurement",
         [
             "depth", "top", "sample_top_height", "hs",
-            "depth_m", 'snowdepthfilter(m)', 'snowdepthfilter'
+            "depth_m", 'snowdepthfilter(m)', 'snowdepthfilter',
+            "height"
         ], True
     )
     BOTTOM_DEPTH = MeasurementDescription(
@@ -163,7 +167,10 @@ class ProfileVariables(ExtendableVariables):
         "manual_wetness", "Manual Wetness",
         ["manual_wetness"]
     )
-
+    COMMENTS = MeasurementDescription(
+        "comments", "Comments",
+        ["comments"]
+    )
 
 class SnowExProfileVariables(ProfileVariables):
     COMMENTS = MeasurementDescription(

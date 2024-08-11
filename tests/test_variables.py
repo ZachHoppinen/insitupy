@@ -9,5 +9,6 @@ class TestVariables:
     def test_variable_attributes(self):
         pass
 
+    @pytest.mark.skip("Not done yet")
     def test_variable_list(self):
         pass

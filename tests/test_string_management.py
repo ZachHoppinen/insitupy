@@ -14,6 +14,7 @@ from insitupy.campaigns.strings import StringManager
         (' Temperature \n', 'temperature')
     ]
 )
+
 def test_standardize_key(in_str, expected):
     """
     Test whether we can clean out the column header from a csv and standardize them
@@ -35,6 +36,7 @@ def test_standardize_key(in_str, expected):
     (['Name', '()', []], {'errors': False}),
     # Test our value error for incorrect encaps
     (['Name', '()()', []], {'errors': True}), ])
+
 def test_get_encapsulated(args, kwargs):
     """
     Test where we can remove chars in a string
@@ -60,13 +62,13 @@ def test_get_encapsulated(args, kwargs):
         # test for mm and comments exchange
         ('grain_size (mm), comments', '()', 'grain_size , comments')
     ])
+
 def test_strip_encapsulated(s, encaps, expected):
     """
     Test where we can remove chars in a string
     """
     r = StringManager.strip_encapsulated(s, encaps)
     assert r == expected
-
 
 def test_parse_none():
     """
@@ -91,6 +93,7 @@ def test_parse_none():
     ('A', None, 1),
 
 ])
+
 def test_get_alpha_ratio(str_line, encapsulator, expected):
     result = StringManager.get_alpha_ratio(str_line, encapsulator=encapsulator)
     assert result == expected

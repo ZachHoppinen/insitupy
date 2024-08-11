@@ -172,7 +172,7 @@ class ProfileData:
         df = gpd.GeoDataFrame(
             df, geometry=location
         ).set_crs("EPSG:4326")
-        df = df.replace(-9999, np.NaN)
+        df = df.replace(-9999, np.nan)
 
         return df
 
@@ -283,12 +283,17 @@ class SnowExProfileData(ProfileData):
             df: pd.dataframe contain csv data with standardized column names
         """
         # header=0 because docs say to if using skip rows and columns
+
+        # TODO if there is a multiline comment in header this will cut off
+        # the first line of data... See failing test for 
+        # SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01 in test_profile_data.test_mean
         df = pd.read_csv(
             profile_filename, header=0,
             skiprows=header_position,
             names=columns,
             encoding='latin'
         )
+        LOG.debug(f"Initial dataframe: {df}")
         # Special SMP specific tasks
         depth_fmt = 'snow_height'
         is_smp = False

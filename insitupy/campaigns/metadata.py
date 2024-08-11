@@ -424,7 +424,7 @@ class MetaDataParser:
             lines = fp.readlines()
 
         # Site description files have no need for column lists
-        if 'site' in filename.lower():
+        if 'siteDetails' in filename.lower():
             LOG.info('Parsing site description header...')
             columns = None
             header_pos = None
@@ -578,6 +578,10 @@ class MetaDataParser:
 
         if not self._fname:
             raise RuntimeError("No file found to parse units from.")
+        
+        # site detail CSV doesn't have units
+        if 'siteDetails_' in self._fname.name:
+            return _units
         
         with open(self._fname, encoding='latin') as fp:
             lines = fp.readlines()

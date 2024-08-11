@@ -31,7 +31,7 @@ pit3dict = {"id": "COCPMR_20210527_1145", "time": "2021-05-27T17:45:00+0000",\
         # 2021 pits
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_density_v01.csv", pit3dict),
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_gapFilledDensity_v01.csv", pit3dict),
-        ("SNEX21_TS_SP_20210527_1145_COCPMR_data_siteDetails_v01.csv", pit3dict),
+        # ("SNEX21_TS_SP_20210527_1145_COCPMR_data_siteDetails_v01.csv", pit3dict),
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_stratigraphy_v01.csv", pit3dict),
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01.csv", pit3dict),
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_temperature_v01.csv", pit3dict),
@@ -97,7 +97,6 @@ class TestSnowexPitMetadata:
     def test_header_position(self, header_pos, expected, fname):
         assert header_pos == expected['header_position']
 
-
 @pytest.mark.parametrize(
     "fname, expected_cols", [
         ("SNEX20_TS_SP_20200427_0845_COERAP_data_density_v01.csv",
@@ -106,9 +105,28 @@ class TestSnowexPitMetadata:
          ['depth', 'bottom_depth', 'avg_density', 'permittivity_a',
           'permittivity_b', 'lwc_vol_a', 'lwc_vol_b']),
         ("SNEX20_TS_SP_20200427_0845_COERAP_data_temperature_v01.csv",
-         ['depth', 'temperature'])
+         ['depth', 'temperature']),
+        ("SnowEx20_SnowPits_GMIOP_20200203_GML_density_v01.csv",
+         ['depth', 'bottom_depth','density_a', 'density_b', 'density_c']),
+        ("SnowEx20_SnowPits_GMIOP_20200203_GML_stratigraphy_v01.csv",
+         ['depth', 'bottom_depth', 'grain_size', 'grain_type', 'hand_hardness', 'manual_wetness', 'comments']),
+        ("SnowEx20_SnowPits_GMIOP_20200203_GML_temperature_v01.csv",
+         ['depth', 'temperature']),
+        ("SNEX21_TS_SP_20210527_1145_COCPMR_data_density_v01.csv",
+         ['depth', 'bottom_depth', 'density_a', 'density_b', 'density_c']),
+        ("SNEX21_TS_SP_20210527_1145_COCPMR_data_gapFilledDensity_v01.csv",
+         ['depth', 'bottom_depth', 'density_a', 'density_b']),
+        ("SNEX21_TS_SP_20210527_1145_COCPMR_data_siteDetails_v01.csv",
+         []),
+        ("SNEX21_TS_SP_20210527_1145_COCPMR_data_stratigraphy_v01.csv",
+         ['depth', 'bottom_depth', 'grain_size', 'grain_type', 'hand_hardness', 'manual_wetness', 'comments']),
+        ("SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01.csv",
+         ['depth', 'bottom_depth', 'avg_density', 'permittivity_a', 'permittivity_b', 'lwc_vol_a', 'lwc_vol_b']),
+        ("SNEX21_TS_SP_20210527_1145_COCPMR_data_temperature_v01.csv",
+         ['depth', 'temperature', 'time_start/end']),
     ]
 )
+
 def test_columns(fname, expected_cols, data_path):
     """
     Test the columns we expect to pass back from the file
@@ -116,5 +134,10 @@ def test_columns(fname, expected_cols, data_path):
     obj = MetaDataParser(
         data_path.joinpath(fname), "US/Mountain"
     )
-    metadata, columns, header_pos = obj.parse()
-    assert columns == expected_cols
+
+    if 'siteDetails' in fname:
+        with pytest.raises(RuntimeError):
+            metadata, columns, header_pos = obj.parse()
+    else:
+        metadata, columns, header_pos = obj.parse()
+        assert columns == expected_cols

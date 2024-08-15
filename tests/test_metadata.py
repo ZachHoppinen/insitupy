@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from insitupy.core.metadata import MetaDataParser
+from insitupy.io.readers import CSVMetaDataParser
 
 pit1dict = {"id": "COERAP_20200427_0845", "time": "2020-04-27T14:45:00+0000",\
         "lat": 38.92524, "long": -106.97112, "utm": "13", "siteid": "Aspen",\
@@ -37,7 +37,7 @@ pit3dict = {"id": "COCPMR_20210527_1145", "time": "2021-05-27T17:45:00+0000",\
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_temperature_v01.csv", pit3dict),
     ]
 )
-class TestSnowexPitMetadata:
+class TestCSVPitMetadata:
     """
     Test that we can consistently read metadata across
     multiple pit measurements
@@ -46,12 +46,12 @@ class TestSnowexPitMetadata:
     @pytest.fixture
     def metadata_info(self, fname, data_path):
         # This is the parser object
-        obj = MetaDataParser(
+        obj = CSVMetaDataParser(
             data_path.joinpath(fname), "US/Mountain"
         )
-        metadata, columns, header_pos = obj.parse()
-        return metadata, columns, header_pos
-
+        metadata, columns = obj.parse()
+        return metadata, columns
+    
     @pytest.fixture
     def metadata(self, metadata_info):
         return metadata_info[0]
@@ -61,8 +61,13 @@ class TestSnowexPitMetadata:
         return metadata_info[1]
 
     @pytest.fixture
-    def header_pos(self, metadata_info):
-        return metadata_info[2]
+    def header_pos(self, fname, data_path):
+        # This is the parser object
+        obj = CSVMetaDataParser(
+            data_path.joinpath(fname), "US/Mountain"
+        )
+        header_pos = obj._find_header_position(obj.lines)[0]
+        return header_pos
 
     # fname needs to be in test since it is a class
     # level parameterization
@@ -117,7 +122,7 @@ class TestSnowexPitMetadata:
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_gapFilledDensity_v01.csv",
          ['depth', 'bottom_depth', 'density_a', 'density_b']),
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_siteDetails_v01.csv",
-         []),
+         None),
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_stratigraphy_v01.csv",
          ['depth', 'bottom_depth', 'grain_size', 'grain_type', 'hand_hardness', 'manual_wetness', 'comments']),
         ("SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01.csv",
@@ -131,13 +136,9 @@ def test_columns(fname, expected_cols, data_path):
     """
     Test the columns we expect to pass back from the file
     """
-    obj = MetaDataParser(
+    obj = CSVMetaDataParser(
         data_path.joinpath(fname), "US/Mountain"
     )
 
-    if 'siteDetails' in fname:
-        with pytest.raises(RuntimeError):
-            metadata, columns, header_pos = obj.parse()
-    else:
-        metadata, columns, header_pos = obj.parse()
-        assert columns == expected_cols
+    metadata, columns = obj.parse()
+    assert columns == expected_cols

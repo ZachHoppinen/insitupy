@@ -91,7 +91,7 @@ class ProfileDataCollection:
         We can iterate though all ProfileData in this class and get SWE DF for each
         """
         # find all points with variable == density and calc SWE
-        pass
+        raise NotImplementedError
 
     def get_mean(self, variable: MeasurementDescription):
         raise NotImplementedError()
@@ -122,9 +122,10 @@ class ProfileDataCollection:
         within_geometry=True,
         buffer=0.0
     ):
-        pass
+        raise NotImplementedError()
 
     @classmethod
     def from_files(cls):
         # parse mlutiple files and create an iterable of ProfileData
-        pass
+        # input might be a directory of files?
+        raise NotImplementedError()

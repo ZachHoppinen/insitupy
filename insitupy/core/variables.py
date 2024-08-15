@@ -1,3 +1,7 @@
+"""
+Standardized data variables
+"""
+
 import inspect
 import logging
 from dataclasses import dataclass

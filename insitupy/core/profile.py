@@ -9,8 +9,9 @@ from typing import List
 import numpy as np
 import pandas as pd
 
-from .metadata import MetaDataParser, ProfileMetaData
-from .variables import ProfileVariables, MeasurementDescription, \
+# from insitupy.io.readers import MetaDataParser
+from insitupy.core.metadata import ProfileMetaData
+from insitupy.core.variables import ProfileVariables, MeasurementDescription, \
     SnowExProfileVariables
 
 
@@ -24,7 +25,7 @@ class ProfileData:
     Unique date, location, variable
     """
     VARIABLES = ProfileVariables
-    META_PARSER = MetaDataParser
+    # META_PARSER = MetaDataParser
 
     def __init__(
         self, input_df, metadata: ProfileMetaData, variable: MeasurementDescription,
@@ -85,75 +86,19 @@ class ProfileData:
     
     @classmethod
     def from_file(cls, fname, variable: MeasurementDescription):
-        # TODO: timezone here (mapped from site?)
-        meta_parser = cls.META_PARSER(fname, "US/Mountain")
-        # Parse the metadata and column info
-        metadata, columns, header_pos = meta_parser.parse()
-        # read in the actual data
-        data = cls._read(fname, columns, header_pos)
+        pass
+        # todo identify correct reader to use
 
-        return cls(data, metadata, variable)
+        # run reader and return data, metadata, variable
 
-    @staticmethod
-    def _read(profile_filename, columns, header_position):
-        """
-        # TODO: better name mapping here
-        Read in a profile file. Managing the number of lines to skip and
-        adjusting column names
+        # # TODO: timezone here (mapped from site?)
+        # meta_parser = cls.META_PARSER(fname, "US/Mountain")
+        # # Parse the metadata and column info
+        # metadata, columns, header_pos = meta_parser.parse()
+        # # read in the actual data
+        # data = cls._read(fname, columns, header_pos)
 
-        Args:
-            profile_filename: Filename containing the a manually measured
-                             profile
-        Returns:
-            df: pd.dataframe contain csv data with standardized column names
-        """
-        # header=0 because docs say to if using skip rows and columns
-
-        # TODO if there is a multiline comment in header this will cut off
-        # the first line of data... See failing test for 
-        # SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01 in test_profile_data.test_mean
-        df = pd.read_csv(
-            profile_filename, header=0,
-            skiprows=header_position,
-            names=columns,
-            encoding='latin'
-        )
-        LOG.debug(f"Initial dataframe: {df}")
-        # Special SMP specific tasks
-        depth_fmt = 'snow_height'
-        is_smp = False
-        if 'force' in df.columns:
-            # Convert depth from mm to cm
-            df['depth'] = df['depth'].div(10)
-            is_smp = True
-            # Make the data negative from snow surface
-            depth_fmt = 'surface_datum'
-
-            # SMP serial number and original filename for provenance to the comment
-            f = Path(profile_filename).name
-            serial_no = f.split('SMP_')[-1][1:3]
-
-            df['comments'] = f"fname = {f}, " \
-                             f"serial no. = {serial_no}"
-
-        if not df.empty:
-            # Standardize all depth data
-            new_depth = standardize_depth(
-                df['depth'], desired_format=depth_fmt, is_smp=is_smp
-            )
-
-            if 'bottom_depth' in df.columns:
-                delta = df['depth'] - new_depth
-                df['bottom_depth'] = df['bottom_depth'] - delta
-
-            df['depth'] = new_depth
-
-            delta = abs(df['depth'].max() - df['depth'].min())
-            LOG.debug(
-                f'File contains a profile with'
-                f' with {len(df)} layers across {delta:0.2f} cm'
-            )
-        return df
+        # return cls(data, metadata, variable)
 
     def _format_df(self, input_df):
         """
@@ -257,10 +202,6 @@ class ProfileData:
         df[self.variable.code] = profile_average
         columns_of_interest = [*self._non_measure_columns, self.variable.code]
         return df.loc[:, columns_of_interest]
-
-    # @classmethod
-    # def from_file(self, fname, variable: ProfileVariables):
-    #     raise NotImplementedError("Not implemented")
 
 def standardize_depth(depths, desired_format='snow_height', is_smp=False):
     """

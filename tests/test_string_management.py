@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from insitupy.campaigns.strings import StringManager
+from insitupy.strings import StringManager
 
 
 @pytest.mark.parametrize(

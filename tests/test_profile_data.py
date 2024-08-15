@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from insitupy.campaigns.campaign import SnowExProfileData
-from insitupy.campaigns.variables import ProfileVariables
+from insitupy.campaign import SnowExProfileData
+from insitupy.variables import ProfileVariables
 
 
 class TestSnowexPitProfile:

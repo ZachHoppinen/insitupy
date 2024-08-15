@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from insitupy.campaigns.metadata import MetaDataParser
+from insitupy.metadata import MetaDataParser
 
 pit1dict = {"id": "COERAP_20200427_0845", "time": "2020-04-27T14:45:00+0000",\
         "lat": 38.92524, "long": -106.97112, "utm": "13", "siteid": "Aspen",\

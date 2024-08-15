@@ -7,7 +7,7 @@ import pandas as pd
 import pytz
 import utm
 
-from .strings import StringManager
+from ..util.strings import StringManager
 from .variables import ProfileVariables
 
 LOG = logging.getLogger(__name__)
@@ -600,4 +600,3 @@ class MetaDataParser:
         
 
         return _units
-                    

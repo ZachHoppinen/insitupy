@@ -21,7 +21,6 @@ class MeasurementDescription:
     # TODO: optional unit we get form 'parse_from' method
     # unit: str = None
 
-
 class ExtendableVariables:
     """
     Make a class with the helpful iterator portion of enums, but
@@ -171,9 +170,10 @@ class ProfileVariables(ExtendableVariables):
         "comments", "Comments",
         ["comments"]
     )
-    RECORDTIME = MeasurementDescription(
-        "observation_time", "Time of obseration",
-        ["time_start/end"]
+    TIME_BOUND_PIT = MeasurementDescription(
+        "Time start/end",
+        "Time of first or last pit measurement",
+        ["Time start/end", "time_start/end"]
     )
 
 class SnowExProfileVariables(ProfileVariables):
@@ -192,11 +192,6 @@ class SnowExProfileVariables(ProfileVariables):
     PARAMETER_CODES = MeasurementDescription(
         "parameter_codes", "Parameter Codes",
         ["parameter_codes"]
-    )
-    TIME_BOUND_PIT = MeasurementDescription(
-        "Time start/end",
-        "Time of first or last pit measurement",
-        ["Time start/end", "time_start/end"]
     )
     SITE_NAME = MeasurementDescription(
         "site_name", "Name of campaign site",

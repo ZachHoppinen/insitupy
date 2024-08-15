@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from insitupy.campaign import SnowExProfileData
-from insitupy.variables import ProfileVariables
+from insitupy.core.profile import ProfileData #, SnowExProfileData
+from insitupy.core.variables import ProfileVariables
 
 
 class TestSnowexPitProfile:
@@ -49,7 +49,8 @@ class TestSnowexPitProfile:
 
     def test_mean(self, fname, variable, expected, data_path):
         file_path = data_path.joinpath(fname)
-        obj = SnowExProfileData.from_file(file_path, variable)        
+        # convert 
+        obj = ProfileData.from_file(file_path, variable)        
 
         result = obj.mean
 
@@ -73,7 +74,7 @@ class TestSnowexPitProfile:
         Test filepaths expected to fail due to non-numeric values
         """
         file_path = data_path.joinpath(fname)
-        obj = SnowExProfileData.from_file(file_path, variable)
+        obj = ProfileData.from_file(file_path, variable)
         with pytest.raises(TypeError):
             result = obj.mean
 
@@ -94,7 +95,7 @@ class TestSnowexPitProfile:
         """
         file_path = data_path.joinpath(fname)
         with pytest.raises(RuntimeError):
-            obj = SnowExProfileData.from_file(file_path, variable)
+            obj = ProfileData.from_file(file_path, variable)
             result = obj.mean
 
 
@@ -120,6 +121,6 @@ class TestSnowexPitProfile:
     )
     def test_total_depth(self, fname, variable, expected, data_path):
         file_path = data_path.joinpath(fname)
-        obj = SnowExProfileData.from_file(file_path, variable)
+        obj = ProfileData.from_file(file_path, variable)
         result = obj.total_depth
         assert result == pytest.approx(expected)

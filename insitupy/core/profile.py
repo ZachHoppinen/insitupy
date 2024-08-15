@@ -1,5 +1,5 @@
 """
-Point data from select manual measurement campaigns
+Profile data structures
 """
 import logging
 from pathlib import Path
@@ -13,66 +13,7 @@ from .metadata import MetaDataParser, ProfileMetaData
 from .variables import ProfileVariables, MeasurementDescription, \
     SnowExProfileVariables
 
-"""
 
-# Start with this
-https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_time_series_pits.py
-data from https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_TS_SP.001/2020.04.27/
-
-# TODO: What do we need here
-
-https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_iop_pits.py
-https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_sbb_depths.py
-https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_snow_depths.py
-Might be of use for snowpit import and visualizing:
-https://github.com/SnowpitData/Snowpilot
-https://github.com/ArcticSnow/snowpyt
-
-SMP
-    https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_smp.py
-    https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/resample_smp.py
-Might be of use for SMP importing and visualizing: 
- https://github.com/cryogars/BSU-micropen
- https://github.com/m9brady/SMP_to_CSV
-
-Maybe not
-    https://github.com/SnowEx/snowex_db/blob/main/scripts/upload/add_snow_poles.py
-
-
-"""
-
-SOURCES = [
-    "https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_SSA.001/",
-    "https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_BSU_GPR.001/",
-    "https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_GM_SP.001/",
-    "https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_SMP.001/",
-    "https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_SD.001/",
-    ("https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_GM_CSU_GPR.001/2020.02.06/"
-     "SNEX20_GM_CSU_GPR_1GHz_v01.csv"),
-    ("https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_UNM_GPR.001/2020.01.28/"
-     "SNEX20_UNM_GPR.csv"),
-    ("https://n5eil01u.ecs.nsidc.org/SNOWEX/SNEX20_SD_TLI.001/2019.09.29/"
-     "SNEX20_SD_TLI_clean.csv"),
-]
-
-
-"""
-Start with pit density, temperature measurements
-
-Big pluses
-    * variable name mapping
-
-# TODO
-    * will need login info for NSIDC
-    * stratigraphy will be the most complicated
-
-# TODO Next
-    * Clean up the metadata file reading
-        * We don't need everything we're reading right now
-    * map to sample_a, sample_b when reading in file
-    * flush out density and swe calcs
-
-"""
 
 LOG = logging.getLogger(__name__)
 
@@ -141,6 +82,78 @@ class ProfileData:
         self._multi_sample = len(self._sample_columns) > 1
         # Extend the df info
         self._extend_df()
+    
+    @classmethod
+    def from_file(cls, fname, variable: MeasurementDescription):
+        # TODO: timezone here (mapped from site?)
+        meta_parser = cls.META_PARSER(fname, "US/Mountain")
+        # Parse the metadata and column info
+        metadata, columns, header_pos = meta_parser.parse()
+        # read in the actual data
+        data = cls._read(fname, columns, header_pos)
+
+        return cls(data, metadata, variable)
+
+    @staticmethod
+    def _read(profile_filename, columns, header_position):
+        """
+        # TODO: better name mapping here
+        Read in a profile file. Managing the number of lines to skip and
+        adjusting column names
+
+        Args:
+            profile_filename: Filename containing the a manually measured
+                             profile
+        Returns:
+            df: pd.dataframe contain csv data with standardized column names
+        """
+        # header=0 because docs say to if using skip rows and columns
+
+        # TODO if there is a multiline comment in header this will cut off
+        # the first line of data... See failing test for 
+        # SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01 in test_profile_data.test_mean
+        df = pd.read_csv(
+            profile_filename, header=0,
+            skiprows=header_position,
+            names=columns,
+            encoding='latin'
+        )
+        LOG.debug(f"Initial dataframe: {df}")
+        # Special SMP specific tasks
+        depth_fmt = 'snow_height'
+        is_smp = False
+        if 'force' in df.columns:
+            # Convert depth from mm to cm
+            df['depth'] = df['depth'].div(10)
+            is_smp = True
+            # Make the data negative from snow surface
+            depth_fmt = 'surface_datum'
+
+            # SMP serial number and original filename for provenance to the comment
+            f = Path(profile_filename).name
+            serial_no = f.split('SMP_')[-1][1:3]
+
+            df['comments'] = f"fname = {f}, " \
+                             f"serial no. = {serial_no}"
+
+        if not df.empty:
+            # Standardize all depth data
+            new_depth = standardize_depth(
+                df['depth'], desired_format=depth_fmt, is_smp=is_smp
+            )
+
+            if 'bottom_depth' in df.columns:
+                delta = df['depth'] - new_depth
+                df['bottom_depth'] = df['bottom_depth'] - delta
+
+            df['depth'] = new_depth
+
+            delta = abs(df['depth'].max() - df['depth'].min())
+            LOG.debug(
+                f'File contains a profile with'
+                f' with {len(df)} layers across {delta:0.2f} cm'
+            )
+        return df
 
     def _format_df(self, input_df):
         """
@@ -245,147 +258,9 @@ class ProfileData:
         columns_of_interest = [*self._non_measure_columns, self.variable.code]
         return df.loc[:, columns_of_interest]
 
-    @classmethod
-    def from_file(self, fname, variable: ProfileVariables):
-        raise NotImplementedError("Not implemented")
-
-
-class SnowExMetadataParser(MetaDataParser):
-    VARIABLES_CLASS = SnowExProfileVariables
-
-
-class SnowExProfileData(ProfileData):
-    VARIABLES = SnowExProfileVariables
-    META_PARSER = SnowExMetadataParser
-
-    @classmethod
-    def from_file(cls, fname, variable: MeasurementDescription):
-        # TODO: timezone here (mapped from site?)
-        meta_parser = cls.META_PARSER(fname, "US/Mountain")
-        # Parse the metadata and column info
-        metadata, columns, header_pos = meta_parser.parse()
-        # read in the actual data
-        data = cls._read(fname, columns, header_pos)
-
-        return cls(data, metadata, variable)
-
-    @staticmethod
-    def _read(profile_filename, columns, header_position):
-        """
-        # TODO: better name mapping here
-        Read in a profile file. Managing the number of lines to skip and
-        adjusting column names
-
-        Args:
-            profile_filename: Filename containing the a manually measured
-                             profile
-        Returns:
-            df: pd.dataframe contain csv data with standardized column names
-        """
-        # header=0 because docs say to if using skip rows and columns
-
-        # TODO if there is a multiline comment in header this will cut off
-        # the first line of data... See failing test for 
-        # SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01 in test_profile_data.test_mean
-        df = pd.read_csv(
-            profile_filename, header=0,
-            skiprows=header_position,
-            names=columns,
-            encoding='latin'
-        )
-        LOG.debug(f"Initial dataframe: {df}")
-        # Special SMP specific tasks
-        depth_fmt = 'snow_height'
-        is_smp = False
-        if 'force' in df.columns:
-            # Convert depth from mm to cm
-            df['depth'] = df['depth'].div(10)
-            is_smp = True
-            # Make the data negative from snow surface
-            depth_fmt = 'surface_datum'
-
-            # SMP serial number and original filename for provenance to the comment
-            f = Path(profile_filename).name
-            serial_no = f.split('SMP_')[-1][1:3]
-
-            df['comments'] = f"fname = {f}, " \
-                             f"serial no. = {serial_no}"
-
-        if not df.empty:
-            # Standardize all depth data
-            new_depth = standardize_depth(
-                df['depth'], desired_format=depth_fmt, is_smp=is_smp
-            )
-
-            if 'bottom_depth' in df.columns:
-                delta = df['depth'] - new_depth
-                df['bottom_depth'] = df['bottom_depth'] - delta
-
-            df['depth'] = new_depth
-
-            delta = abs(df['depth'].max() - df['depth'].min())
-            LOG.debug(
-                f'File contains a profile with'
-                f' with {len(df)} layers across {delta:0.2f} cm'
-            )
-        return df
-
-
-class ProfileDataCollection:
-    """
-    This could be a collection of pits, profiles, etc
-    """
-
-    def __init__(self, df):
-        self._df = df
-        pass
-
-    @property
-    def SWE(self):
-        """
-        Takes all layers for each unique date, location and returns point swe
-        geodataframe
-        We can iterate though all ProfileData in this class and get SWE DF for each
-        """
-        # find all points with variable == density and calc SWE
-        pass
-
-    def get_mean(self, variable: MeasurementDescription):
-        raise NotImplementedError()
-
-    def get_sum(self, variable: MeasurementDescription):
-        raise NotImplementedError()
-
-    def get_profile(self, variable: MeasurementDescription):
-        raise NotImplementedError()
-
-    # def get_pit_data(self, start_date, end_date, variables) -> List[PointData]:
-    #     """
-    #     Returns a geodataframe
-    #     """
-    #     pass
-
-    @property
-    def metadata(self):
-        # might be a map of date to location
-        pass
-
-    @classmethod
-    def points_from_geometry(
-        cls,
-        geometry: gpd.GeoDataFrame,
-        variables: List[MeasurementDescription],
-        snow_courses=False,
-        within_geometry=True,
-        buffer=0.0
-    ):
-        pass
-
-    @classmethod
-    def from_files(cls):
-        # parse mlutiple files and create an iterable of ProfileData
-        pass
-
+    # @classmethod
+    # def from_file(self, fname, variable: ProfileVariables):
+    #     raise NotImplementedError("Not implemented")
 
 def standardize_depth(depths, desired_format='snow_height', is_smp=False):
     """
@@ -443,3 +318,83 @@ def standardize_depth(depths, desired_format='snow_height', is_smp=False):
         )
 
     return new
+
+# #TODO: Can we remove these snowex classes to make this more general?
+# class SnowExMetadataParser(MetaDataParser):
+#     VARIABLES_CLASS = SnowExProfileVariables
+
+# class SnowExProfileData(ProfileData):
+#     VARIABLES = SnowExProfileVariables
+#     META_PARSER = SnowExMetadataParser
+
+#     @classmethod
+#     def from_file(cls, fname, variable: MeasurementDescription):
+#         # TODO: timezone here (mapped from site?)
+#         meta_parser = cls.META_PARSER(fname, "US/Mountain")
+#         # Parse the metadata and column info
+#         metadata, columns, header_pos = meta_parser.parse()
+#         # read in the actual data
+#         data = cls._read(fname, columns, header_pos)
+
+#         return cls(data, metadata, variable)
+
+#     @staticmethod
+#     def _read(profile_filename, columns, header_position):
+#         """
+#         # TODO: better name mapping here
+#         Read in a profile file. Managing the number of lines to skip and
+#         adjusting column names
+
+#         Args:
+#             profile_filename: Filename containing the a manually measured
+#                              profile
+#         Returns:
+#             df: pd.dataframe contain csv data with standardized column names
+#         """
+#         # header=0 because docs say to if using skip rows and columns
+
+#         # TODO if there is a multiline comment in header this will cut off
+#         # the first line of data... See failing test for 
+#         # SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01 in test_profile_data.test_mean
+#         df = pd.read_csv(
+#             profile_filename, header=0,
+#             skiprows=header_position,
+#             names=columns,
+#             encoding='latin'
+#         )
+#         LOG.debug(f"Initial dataframe: {df}")
+#         # Special SMP specific tasks
+#         depth_fmt = 'snow_height'
+#         is_smp = False
+#         if 'force' in df.columns:
+#             # Convert depth from mm to cm
+#             df['depth'] = df['depth'].div(10)
+#             is_smp = True
+#             # Make the data negative from snow surface
+#             depth_fmt = 'surface_datum'
+
+#             # SMP serial number and original filename for provenance to the comment
+#             f = Path(profile_filename).name
+#             serial_no = f.split('SMP_')[-1][1:3]
+
+#             df['comments'] = f"fname = {f}, " \
+#                              f"serial no. = {serial_no}"
+
+#         if not df.empty:
+#             # Standardize all depth data
+#             new_depth = standardize_depth(
+#                 df['depth'], desired_format=depth_fmt, is_smp=is_smp
+#             )
+
+#             if 'bottom_depth' in df.columns:
+#                 delta = df['depth'] - new_depth
+#                 df['bottom_depth'] = df['bottom_depth'] - delta
+
+#             df['depth'] = new_depth
+
+#             delta = abs(df['depth'].max() - df['depth'].min())
+#             LOG.debug(
+#                 f'File contains a profile with'
+#                 f' with {len(df)} layers across {delta:0.2f} cm'
+#             )
+#         return df

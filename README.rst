@@ -35,6 +35,12 @@ Features
 
 * TODO
 
+Used Instruments
+--------
+
+* SMP
+* 
+
 Credits
 -------
 

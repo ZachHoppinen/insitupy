@@ -13,7 +13,6 @@ import utm
 from insitupy.util.strings import StringManager
 from insitupy.core.variables import ProfileVariables
 from insitupy.core.metadata import ProfileMetaData
-from insitupy.core.profile import ProfileData
 
 LOG = logging.getLogger(__name__)
 
@@ -370,66 +369,6 @@ class MetaDataParser:
 
             raise RuntimeError(f"Unable to parse UTM EPGS from {self.rough_obj}")
 
-class DataParser:
-
-    def __init__(self, filename):
-        self._fname = filename
-
-    @staticmethod
-    def _read(df):
-        """
-        # TODO: better name mapping here
-        Read in a profile file. Managing the number of lines to skip and
-        adjusting column names
-
-        Args:
-            profile_filename: Filename containing the a manually measured
-                             profile
-        Returns:
-            df: pd.dataframe contain csv data with standardized column names
-        """
-        # header=0 because docs say to if using skip rows and columns
-
-        # TODO if there is a multiline comment in header this will cut off
-        # the first line of data... See failing test for 
-        # SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01 in test_profile_data.test_mean
-        LOG.debug(f"Initial dataframe: {df}")
-        # Special SMP specific tasks
-        depth_fmt = 'snow_height'
-        is_smp = False
-        if 'force' in df.columns:
-            # Convert depth from mm to cm
-            df['depth'] = df['depth'].div(10)
-            is_smp = True
-            # Make the data negative from snow surface
-            depth_fmt = 'surface_datum'
-
-            # SMP serial number and original filename for provenance to the comment
-            f = Path(profile_filename).name
-            serial_no = f.split('SMP_')[-1][1:3]
-
-            df['comments'] = f"fname = {f}, " \
-                             f"serial no. = {serial_no}"
-
-        if not df.empty:
-            # Standardize all depth data
-            new_depth = standardize_depth(
-                df['depth'], desired_format=depth_fmt, is_smp=is_smp
-            )
-
-            if 'bottom_depth' in df.columns:
-                delta = df['depth'] - new_depth
-                df['bottom_depth'] = df['bottom_depth'] - delta
-
-            df['depth'] = new_depth
-
-            delta = abs(df['depth'].max() - df['depth'].min())
-            LOG.debug(
-                f'File contains a profile with'
-                f' with {len(df)} layers across {delta:0.2f} cm'
-            )
-        return df
-
 class CSVMetaDataParser(MetaDataParser):
     """
     Metadata parser from CSV files
@@ -454,7 +393,7 @@ class CSVMetaDataParser(MetaDataParser):
             self._header_pos = self._find_header_position()[0]
         return self._header_pos
 
-    def _find_header_position(self, lines):
+    def _find_header_position(self):
         """
         A flexible method that attempts to find and standardize column names
         for csv data. Looks for a comma separated line with N entries == to the
@@ -475,6 +414,7 @@ class CSVMetaDataParser(MetaDataParser):
             header position
         """
 
+        lines = self.lines
         # Minimum column size should match the last line of data (Assumption
         # #2)
         n_columns = len(lines[-1].split(','))
@@ -554,7 +494,7 @@ class CSVMetaDataParser(MetaDataParser):
 
         # Find the column names and where it is in the file
         else:
-            header_pos, header_indicator = self._find_header_position(self.lines)
+            header_pos, header_indicator = self._find_header_position()
 
             columns = self._parse_columns(self.lines[header_pos])
             LOG.debug(
@@ -672,7 +612,7 @@ class CSVMetaDataParser(MetaDataParser):
         if 'siteDetails_' in self._fname.name:
             return _units
 
-        header_pos, header_indicator = self._find_header_position(self.lines)
+        header_pos, header_indicator = self._find_header_position()
 
         raw_cols = self.lines[header_pos].strip('#').split(',')
         clean_cols = self._parse_columns(self.lines[header_pos])
@@ -687,32 +627,175 @@ class CSVMetaDataParser(MetaDataParser):
 
         return _units
 
+class DataParser:
+
+    def __init__(self, filename):
+        self._fname = filename
+        self._df = None
+    
+    @property
+    def df(self):
+        if self._df is None:
+            self._df = self.get_df()
+        return self._df
+
+    def get_df(self):
+        raise NotImplementedError
+
+    @staticmethod
+    def _clean_df(df):
+        """
+        # TODO: better name mapping here
+        Read in a profile file. Managing the number of lines to skip and
+        adjusting column names
+
+        Args:
+            profile_filename: Filename containing the a manually measured
+                             profile
+        Returns:
+            df: pd.dataframe contain csv data with standardized column names
+        """
+        # header=0 because docs say to if using skip rows and columns
+
+        # TODO if there is a multiline comment in header this will cut off
+        # the first line of data... See failing test for 
+        # SNEX21_TS_SP_20210527_1145_COCPMR_data_LWC_v01 in test_profile_data.test_mean
+        LOG.debug(f"Initial dataframe: {df}")
+        # Special SMP specific tasks
+        depth_fmt = 'snow_height'
+        is_smp = False
+        if 'force' in df.columns:
+            # Convert depth from mm to cm
+            df['depth'] = df['depth'].div(10)
+            is_smp = True
+            # Make the data negative from snow surface
+            depth_fmt = 'surface_datum'
+
+            # SMP serial number and original filename for provenance to the comment
+            f = Path(profile_filename).name
+            serial_no = f.split('SMP_')[-1][1:3]
+
+            df['comments'] = f"fname = {f}, " \
+                             f"serial no. = {serial_no}"
+
+        if not df.empty:
+            # Standardize all depth data
+            new_depth = standardize_depth(
+                df['depth'], desired_format=depth_fmt, is_smp=is_smp
+            )
+
+            if 'bottom_depth' in df.columns:
+                delta = df['depth'] - new_depth
+                df['bottom_depth'] = df['bottom_depth'] - delta
+
+            df['depth'] = new_depth
+
+            delta = abs(df['depth'].max() - df['depth'].min())
+            LOG.debug(
+                f'File contains a profile with'
+                f' with {len(df)} layers across {delta:0.2f} cm'
+            )
+        return df
+
 class CSVDataParser(DataParser):
 
-    def read_csv(profile_filename, metadata, columns):
-        
+    def __init__(self, profile_filename, metadata, columns):
+        DataParser.__init__(self, profile_filename)
+
+        raw_df = self.get_df(metadata.header_indicator, metadata.header_pos, columns)
+
+        self._df = self._clean_df(raw_df)
+    
+    def get_df(self, header_indicator, header_pos, columns):
         df = pd.read_csv(
-            profile_filename, header=0,
-            skiprows=metadata.header_pos,
+            self._fname, header=0,
+            skiprows=header_pos,
             names=columns,
             encoding='latin'
         )
 
-        if 
-
         return df
-
-
-class CSV_reader:
+        
+def standardize_depth(depths, desired_format='snow_height', is_smp=False):
     """
-    Reader for CSV files that returns metadata and data
+    Data that is a function of depth comes in 2 formats. Sometimes 0 is
+    the snow surface, sometimes 0 is the ground. This function standardizes it
+    for each profile. desired_format can be:
+
+        snow_height: Zero at the bottom of the data.
+        surface_datum: Zero at the top of the data and uses negative depths
+                       (easier for plotting)
+
+    Args:
+        depths: Pandas series of depths in either format
+        desired_format: string indicating which format the data is in
+        is_smp: Boolean indicating which data this is, if smp then the data is
+                surface_datum but with positive depths
+   Returns:
+        new:
+    """
+    max_depth = depths.max()
+    min_depth = depths.min()
+
+    new = depths.copy()
+
+    # How is the depth ordered
+    # max_depth_at_top = depths.iloc[0] > depths.iloc[-1]
+
+    # Is the data in surface_datum already
+    bottom_is_negative = depths.iloc[-1] < 0
+
+    if desired_format == 'snow_height':
+
+        if is_smp:
+            LOG.info('Converting SMP depths to snow height format.')
+            new = (depths - max_depth).abs()
+
+        elif bottom_is_negative:
+            LOG.info('Converting depths in surface datum to snow height format.')
+
+            new = (depths + abs(min_depth))
+
+    elif desired_format == 'surface_datum':
+        if is_smp:
+            LOG.info('Converting SMP depths to surface datum format.')
+            new = depths.mul(-1)
+
+        elif not bottom_is_negative:
+            LOG.info('Converting depths in snow height to surface datum format.')
+            new = depths - max_depth
+
+    else:
+        raise ValueError(
+            f'{desired_format} is an invalid depth format! Options are:'
+            f' {["snow_height", "surface_datum"]}'
+        )
+
+    return new
+
+class reader:
+    @property
+    def df(self):
+        return self._df
+    
+    @property
+    def metadata(self):
+        return self._metadata
+
+class CSV_reader(reader):
+    """
+    Reader for CSV files that combines a  metadata and data
     """
 
-    def __init__(filepath, timezone = None):
+    def __init__(self, filepath, timezone = None):
         # first read in metadata and column names
         obj = CSVMetaDataParser(filepath, timezone)
         metadata, columns = obj.parse()
 
         # next read in csv data
+        data = CSVDataParser(filepath, obj, columns)
+    
+        self._metadata = metadata
+        self._df = data.df
 
 

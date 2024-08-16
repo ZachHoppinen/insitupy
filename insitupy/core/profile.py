@@ -9,11 +9,10 @@ from typing import List
 import numpy as np
 import pandas as pd
 
-# from insitupy.io.readers import MetaDataParser
+from insitupy.io.readers import CSV_reader # excel_reader, camml_reader
 from insitupy.core.metadata import ProfileMetaData
 from insitupy.core.variables import ProfileVariables, MeasurementDescription, \
     SnowExProfileVariables
-
 
 
 LOG = logging.getLogger(__name__)
@@ -26,6 +25,8 @@ class ProfileData:
     """
     VARIABLES = ProfileVariables
     # META_PARSER = MetaDataParser
+    # add more here as we get them.
+    READERS = {'.csv': CSV_reader}
 
     def __init__(
         self, input_df, metadata: ProfileMetaData, variable: MeasurementDescription,
@@ -75,7 +76,7 @@ class ProfileData:
             c for c in columns if self._column_mappings.get(c) == self.variable
         ]
         if len(self._sample_columns) == 0:
-            raise ValueError(f"No sample columns in {columns}")
+            raise ValueError(f"Requested sample column {self.variable} not found in {columns}")
 
         # describe the data a bit
         self._has_layers = self._lower_depth_layer.code in columns
@@ -85,13 +86,21 @@ class ProfileData:
         self._extend_df()
     
     @classmethod
-    def from_file(cls, fname, variable: MeasurementDescription):
-        pass
-        # todo identify correct reader to use
-
-        # run reader and return data, metadata, variable
-
+    def from_file(cls, fname, variable: MeasurementDescription, timezone = None):
         # # TODO: timezone here (mapped from site?)
+        
+        # identify correct reader to use
+        reader = cls.READERS[Path(fname).suffix] or None
+        if not reader: raise RuntimeError(f"No reader could be identified for file: {fname}")
+
+        # parse out metadata and inut dataframe
+        reader_obj = reader(fname, timezone)
+
+
+        profile = cls(reader_obj.df, reader_obj.metadata, variable)
+
+        return profile
+
         # meta_parser = cls.META_PARSER(fname, "US/Mountain")
         # # Parse the metadata and column info
         # metadata, columns, header_pos = meta_parser.parse()
@@ -202,60 +211,3 @@ class ProfileData:
         df[self.variable.code] = profile_average
         columns_of_interest = [*self._non_measure_columns, self.variable.code]
         return df.loc[:, columns_of_interest]
-
-def standardize_depth(depths, desired_format='snow_height', is_smp=False):
-    """
-    Data that is a function of depth comes in 2 formats. Sometimes 0 is
-    the snow surface, sometimes 0 is the ground. This function standardizes it
-    for each profile. desired_format can be:
-
-        snow_height: Zero at the bottom of the data.
-        surface_datum: Zero at the top of the data and uses negative depths
-                       (easier for plotting)
-
-    Args:
-        depths: Pandas series of depths in either format
-        desired_format: string indicating which format the data is in
-        is_smp: Boolean indicating which data this is, if smp then the data is
-                surface_datum but with positive depths
-   Returns:
-        new:
-    """
-    max_depth = depths.max()
-    min_depth = depths.min()
-
-    new = depths.copy()
-
-    # How is the depth ordered
-    # max_depth_at_top = depths.iloc[0] > depths.iloc[-1]
-
-    # Is the data in surface_datum already
-    bottom_is_negative = depths.iloc[-1] < 0
-
-    if desired_format == 'snow_height':
-
-        if is_smp:
-            LOG.info('Converting SMP depths to snow height format.')
-            new = (depths - max_depth).abs()
-
-        elif bottom_is_negative:
-            LOG.info('Converting depths in surface datum to snow height format.')
-
-            new = (depths + abs(min_depth))
-
-    elif desired_format == 'surface_datum':
-        if is_smp:
-            LOG.info('Converting SMP depths to surface datum format.')
-            new = depths.mul(-1)
-
-        elif not bottom_is_negative:
-            LOG.info('Converting depths in snow height to surface datum format.')
-            new = depths - max_depth
-
-    else:
-        raise ValueError(
-            f'{desired_format} is an invalid depth format! Options are:'
-            f' {["snow_height", "surface_datum"]}'
-        )
-
-    return new

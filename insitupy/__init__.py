@@ -1,5 +1,5 @@
-"""Top-level package for insitupy."""
+# __init__.py
 
-__author__ = """M3 Works LLC"""
-__email__ = 'info@m3works.io'
-__version__ = '0.1.2'
+from .io.readers import from_file
+
+__version__ = "0.0.1"

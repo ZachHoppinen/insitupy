@@ -8,6 +8,7 @@ Reader classes to parse CSV, excel, CAAML files and return:
 from pathlib import Path
 import string
 import logging
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -103,17 +104,29 @@ class Reader:
         metadata = {}
 
         for k, v in self.metadata.items():
+            kl = StringManager.clean_str(k)
             try:
-                metadata[k] = float(v)
+                metadata[kl] = float(v)
                 continue
             except ValueError: pass
             
             try:
-                metadata[k] = int(v)
+                metadata[kl] = int(v)
                 continue
             except ValueError: pass
 
-            metadata[k] = v
+            try:
+                dt = pd.to_datetime(v)
+                if pd.isnull(dt): raise ValueError
+                metadata[kl] = dt
+                continue
+            except ValueError: pass
+
+            if v == "":
+                metadata[kl] = None
+                continue
+
+            metadata[kl] = v
         
         return metadata
 
@@ -229,8 +242,11 @@ class Reader:
         return pd.to_datetime(str_date) + pd.Timedelta(str_time)
 
     # def clean_data(self):
-        
 
+    def parse(self):
+
+        raise NotImplementedError
+        
 class CSVReader(Reader):
 
     SYMBOLS = string.printable[62:94]
@@ -258,7 +274,17 @@ class CSVReader(Reader):
         # check to be sure no duplicate columns
         assert len(self.columns) == len(set(self.columns)), f"Found duplicate columns in {self.columns}"
 
-        self._data = pd.read_csv(self._filepath, comment = self._header_marker, names = self.columns)
+        # read in data
+        # if split lines read temporary file with comments fixed
+        if self.split_lines:
+            self._data = pd.read_csv(self._temp_filepath, comment = self._header_marker, names = self.columns)
+
+            # clean up temporary file
+            self._temp_filepath.unlink()
+            LOG.debug(f'Deleting split line temorary file {self._temp_filepath}')
+
+        else:
+            self._data = pd.read_csv(self._filepath, comment = self._header_marker, names = self.columns)
         # self._clean_data()
 
         LOG.debug(f"Found {len(self.data)} rows of data and {len(self.data.columns)} columns.")
@@ -283,6 +309,12 @@ class CSVReader(Reader):
         if not self._header:
             self._header = self._parse_header()
         return self._header
+    
+    @property
+    def split_lines(self):
+        if not self._split_lines:
+            self._parse_header()
+        return self._split_lines
 
     def _parse_header_symbol(self):
 
@@ -351,22 +383,72 @@ class CSVReader(Reader):
         return _clean_cols, _units
 
     def _parse_header(self):
-        
+        """
+        parsed header from read in lines
+        """
+        # first check for/fix split lines
+        header_positions = [i for i, line in enumerate(self.lines) if line.startswith(self.header_marker)]
+        max_header = max(header_positions)
+
+        split_lines = []
+
+        if not check_consecutive(header_positions):
+            LOG.debug(f"Found split lines in {self.filepath}. Trying to parse.")
+            fixed_header = []
+            for i, line in enumerate(self.lines):
+                if i in header_positions: fixed_header.append(line); continue
+
+                if i > max_header:
+                    break
+                
+                fixed_header[-1] = fixed_header[-1].strip('\n') + ' ' + line
+                split_lines.append([line, fixed_header[-1].strip('\n') + ' ' + line])
+            
+            header = fixed_header
+
+            LOG.debug(f"Found {len(split_lines)} split lines.")
+            LOG.debug(f'Fixed lines: {[f"{l1} to {l2}" for l1, l2 in split_lines]}')
+            self._split_lines = True
+
+            # save out temporary file
+            data_lines = self.lines[max_header + 1:]
+            tmp_fp = Path('split_line_fix.csv')
+            with open(tmp_fp, 'w') as fp:
+                fp.writelines(header + data_lines)
+            
+            self._temp_filepath = tmp_fp
+
+        else:
+            header = [l for l in self.lines if l[0].startswith(self.header_marker)]
+            self._split_lines = False
+
         # parse header into dictionary of clean values
-        header = [StringManager.clean_str(l.strip(self.header_marker)) for l in self.lines if l[0] == self.header_marker]
+        header = [StringManager.clean_str(l.strip(self.header_marker)) for l in header]
 
         return header
 
     def _parse_metadata(self):
-
+        """
+        parses metadata from header into dictionary
+        """
         metadata = self.header[:-1]
 
         metadata = {l[0]:l[1] for l in [l.split(',') for l in metadata] if len(l) == 2}
 
         return metadata
 
-
 def from_file(filepath):
+    f"""
+    Readers in an appropriate file into a Insitupy SnowProfile object.
+
+    Currently accepted readers are: CSV.
+
+    Args:
+        Filepath: str or Path
+    
+    Return
+        Snowprofile object containing metadata in .attrs and data as variables.
+    """
     READERS = {'.csv': CSVReader}
 
     # does same basic filepath checking and conversion for us
@@ -379,6 +461,12 @@ def from_file(filepath):
     reader = reader(filepath)
     reader.parse()
 
-    snowpit = reader.create_snowpit()
+    snowprofile = reader.create_snowpit()
 
-    return snowpit
+    return snowprofile
+
+def check_consecutive(l):
+    """
+    https://www.geeksforgeeks.org/python-check-if-list-contains-consecutive-numbers/#
+    """
+    return l == list(range(min(l), max(l)+1))

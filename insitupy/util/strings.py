@@ -3,7 +3,6 @@ import numpy as np
 
 LOG = logging.getLogger(__name__)
 
-
 class StringManager:
     @staticmethod
     def clean_str(messy):

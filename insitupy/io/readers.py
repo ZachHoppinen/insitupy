@@ -13,8 +13,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from snowcore.util.strings import StringManager
-from snowcore.core.profiles import SnowProfile
+from insitupy.util.strings import StringManager
+from insitupy.core.profiles import SnowProfile
 
 LOG = logging.getLogger(__name__)
 

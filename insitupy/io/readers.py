@@ -45,7 +45,6 @@ class Reader:
 
         assert filepath.suffix in self.EXTENSIONS, f'Filepath {filepath} does not contain recognized extension of options {self.EXTENSIONS}.'
 
-        LOG.info(f"Parsing filepath {filepath}")
         self._filepath = filepath
     
     @property
@@ -158,12 +157,16 @@ class Reader:
             self._data = self.data.drop(bottom_cols[0], axis = 1) 
         else:
             bottom = self.data[top]
-        # rename whatever our top column is called to z and make it an index
-        snowprofile = SnowProfile(data_vars = self.data.rename({top: 'z'}, axis = 1).set_index('z'),
-                    # set coords for x, y, time, z
-                    coords = coords, attrs = self.metadata).assign_coords(bottom = ('z', bottom))
 
-        # snowprofile.attrs = self.metadata
+        # rename whatever our top column is called to z and make it an index
+        snowprofile = xr.Dataset(data_vars = self.data.rename({top: 'z'}, axis = 1).set_index('z'),
+                    # set coords for x, y, time, z
+                    coords = coords, attrs = self.metadata)#.assign_coords(bottom = ('z', bottom))
+
+        for var in snowprofile.data_vars:
+            snowprofile.snow.bottom[var] = bottom
+            snowprofile[var].attrs['bottom'] = bottom
+
         snowprofile.attrs['units'] = self.units
 
         # add in units to dimensions
@@ -288,6 +291,8 @@ class CSVReader(Reader):
     UNITS = [ "m", "cm", "mm","km", "kg", "kg/m3", "%", "deg C", "deg F", "g/cm"]
 
     def __init__(self, filepath, header_symbol: str = None, header_sep: str = None):
+
+        LOG.info(f"Parsing filepath {filepath}")
 
         Reader.__init__(self, filepath)
         lines = self.read_lines()

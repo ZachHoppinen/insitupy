@@ -3,3 +3,5 @@
 # from .io.readers import from_file
 
 __version__ = "0.0.1"
+
+from .io.readers import from_file

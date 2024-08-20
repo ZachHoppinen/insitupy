@@ -18,7 +18,7 @@ loomsitu
 
 Manage reading and analyzing raw files of insitu data. The goal is to get
 raw insitu data files into manageable classes with helpful functions and provide
-access to the data as GeoPandas Arrays.
+access to the data as xarray dataset based objects.
 
 The first application of this will be for SnowEx pit data.
 
@@ -48,3 +48,4 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+.. xarray: https://github.com/pydata/xarray

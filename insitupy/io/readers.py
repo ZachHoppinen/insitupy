@@ -10,12 +10,13 @@ import string
 import logging
 import shutil
 
+import random
+
 import numpy as np
 import pandas as pd
 import xarray as xr
 
 from insitupy.util.strings import StringManager
-from insitupy.core.profiles import SnowProfile
 
 LOG = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ class Reader:
 
         assert filepath.exists(), f"Provided filepath {filepath} does not exist."
 
-        assert filepath.suffix in self.EXTENSIONS, f'Filepath {filepath} does not contain recognized extension of options {EXTENSIONS}.'
+        assert filepath.suffix in self.EXTENSIONS, f'Filepath {filepath} does not contain recognized extension of options {self.EXTENSIONS}.'
 
         LOG.info(f"Parsing filepath {filepath}")
         self._filepath = filepath
@@ -130,7 +131,7 @@ class Reader:
         
         return metadata
 
-    def create_snowpit(self):
+    def create_snowprofile(self):
         """
         Generates a snowpit xarray object from data and metadata
         """
@@ -150,7 +151,7 @@ class Reader:
 
         top = top_cols[0]
 
-        print(self.data)
+        # check if there is a bottom column or just assign top column to be depth
         if len(bottom_cols) == 1:
             bottom = self.data[bottom_cols[0]]
             self._data = self.data.drop(bottom_cols[0], axis = 1) 
@@ -158,9 +159,33 @@ class Reader:
             bottom = self.data[top]
             
         # rename whatever our top column is called to z and make it an index
-        snowprofile = SnowProfile(self.data.rename({top: 'z'}, axis = 1).set_index('z'),
+        snowprofile = xr.Dataset(self.data.rename({top: 'z'}, axis = 1).set_index('z'),
                     # set coords for x, y, time, z
-                    coords = coords).assign_coords(bottom = ('z', bottom))        
+                    coords = coords).assign_coords(bottom = ('z', bottom))
+
+        snowprofile.attrs = self.metadata
+        snowprofile.attrs['units'] = self.units
+
+        # add in units to dimensions
+        if top in self.units.keys():
+            if top in self.units.keys():
+                snowprofile.z.attrs['units'] = self.units[top][0]
+            else:
+                snowprofile.z.attrs['units'] = None
+        
+        for coord_name in ['x','y','id']:
+            if self.metadata[f'{coord_name}_coord_name'] in self.units:
+                snowprofile[coord_name].attrs['units'] = self.units[self.metadata[f'{coord_name}_coord_name']]
+                continue
+            
+            snowprofile[coord_name].attrs['units'] = ''
+        
+        snowprofile['time'].attrs['units'] = ''
+
+        for coord_name in ['x', 'y','id']:
+            snowprofile[coord_name].attrs['long_name'] = self.metadata[f'{coord_name}_coord_name']
+        snowprofile['z'].attrs['long_name'] = 'Snow Height'
+        snowprofile['time'].attrs['long_name'] = 'Pit Time'
 
         return snowprofile
 
@@ -191,7 +216,14 @@ class Reader:
 
         for coord_name, NAMES in zip(coords, [self.X_NAMES, self.Y_NAMES, self.ID_NAMES]):
 
-            possible_coords = [k for k in metadata if k.lower() in NAMES]
+            possible_coords = [k for k in metadata if any([n in k.lower() for n in NAMES])]
+
+            if coord_name == 'id' and not possible_coords:
+                id = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+                LOG.info(f"No pit id found assigning a random id {id}")
+                metadata['pitid'] = [id]
+                possible_coords = 'pitid'
+
 
             assert possible_coords, f"No {coord_name} value found in metadata \
                 {metadata} searching with list {NAMES}"
@@ -206,6 +238,8 @@ class Reader:
                 {metadata} searching with list {NAMES}"
             
             coords[coord_name] = metadata[possible_coords[0]]
+
+            self.metadata[f'{coord_name}_coord_name'] = possible_coords[0]
 
         return coords
     
@@ -269,6 +303,7 @@ class CSVReader(Reader):
         self._header = self._parse_header()
 
         self._columns, self._units = self._parse_columns()
+
         LOG.debug(f"Found columns {self._columns}")
 
         # check to be sure no duplicate columns
@@ -291,6 +326,9 @@ class CSVReader(Reader):
 
         self._metadata = self._parse_metadata()
         self._metadata = self._clean_metadata()
+        # add metadata units
+        self._units = self._parse_metadata_units()
+
 
     @property
     def header_marker(self):
@@ -436,12 +474,28 @@ class CSVReader(Reader):
         metadata = {l[0]:l[1] for l in [l.split(',') for l in metadata] if len(l) == 2}
 
         return metadata
+    
+    def _parse_metadata_units(self):
+        _units = self.units
+
+        for k, v in self.metadata.items():
+            for encapsulator in ['[]','()']:
+                encapsulated = StringManager.get_encapsulated(k, encapsulator)
+                if len(encapsulated) == 1:
+                    _units[k] = encapsulated
+        return _units
+
+def check_consecutive(l):
+    """
+    https://www.geeksforgeeks.org/python-check-if-list-contains-consecutive-numbers/#
+    """
+    return l == list(range(min(l), max(l)+1))
 
 def from_file(filepath):
     f"""
-    Readers in an appropriate file into a Insitupy SnowProfile object.
+    Reads in an appropriate file into a Insitupy SnowProfile object.
 
-    Currently accepted readers are: CSV.
+    Currently accepted readers are: {Reader.EXTENSIONS}.
 
     Args:
         Filepath: str or Path
@@ -461,12 +515,6 @@ def from_file(filepath):
     reader = reader(filepath)
     reader.parse()
 
-    snowprofile = reader.create_snowpit()
+    snowprofile = reader.create_snowprofile()
 
     return snowprofile
-
-def check_consecutive(l):
-    """
-    https://www.geeksforgeeks.org/python-check-if-list-contains-consecutive-numbers/#
-    """
-    return l == list(range(min(l), max(l)+1))

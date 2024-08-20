@@ -1,12 +1,14 @@
 """
 Functionality for plotting SnowProfile and SnowCampaign objects.
 """
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from insitupy.util.strings import StringManager
 
 def plot_profile(profile):
+    hardness_ns = {'F': 0, '4F': 1, '1F': 2, 'P': 3, 'K': 4, 'I': 5}
     density_cmap = plt.get_cmap('cividis')
     temp_cmap = plt.get_cmap('magma')
     lwc_cmap = plt.get_cmap('hsv')
@@ -45,7 +47,7 @@ def plot_profile(profile):
             cmap = permittiv_cmap
             ax = ax_dielectric
         elif 'hand_hardness' in var:
-            da = convert_handhardness_to_numeric(profile)
+            da = _convert_handhardness_to_numeric(profile)
             for i in da:
                 if np.isnan(i.data): continue
                 height = i.z - i.bottom
@@ -91,7 +93,7 @@ def plot_profile(profile):
 
 
     for ax in axes[:, 0]:
-        ax.set_ylabel(f'{profile.z.attrs['long_name']} [{profile.z.attrs['units']}]')
+        ax.set_ylabel(f"{profile.z.attrs['long_name']} [{profile.z.attrs['units']}]")
 
     ax_density.invert_xaxis()
     ax_temp.invert_xaxis()
@@ -109,3 +111,16 @@ def plot_profile(profile):
     plt.tight_layout()
 
     return fig
+
+def _convert_handhardness_to_numeric(ds):
+    da = ds['hand_hardness'].copy()
+    hardness_ns = {'F': 0, '4F': 1, '1F': 2, 'P': 3, 'K': 4, 'I': 5}
+    hss = []
+
+    for h in ds['hand_hardness'].data:
+        if isinstance(h, str):hss.append(hardness_ns[h])
+        elif np.isnan(h): hss.append(np.nan)
+        else: raise ValueError
+    da.data = hss
+
+    return da

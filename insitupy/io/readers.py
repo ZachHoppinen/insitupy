@@ -17,6 +17,7 @@ import pandas as pd
 import xarray as xr
 
 from insitupy.util.strings import StringManager
+from insitupy.core.profiles import SnowProfile
 
 LOG = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ class Reader:
                 lines = fp.readlines()
             
             if all([c in string.printable for c in ''.join(lines)]): 
-                LOG.info(f"Read lines with encoding {encoding}")
+                LOG.debug(f"Read lines with encoding {encoding}")
                 break
         
         LOG.debug(f"Found lines in {filepath} {lines}")
@@ -157,13 +158,12 @@ class Reader:
             self._data = self.data.drop(bottom_cols[0], axis = 1) 
         else:
             bottom = self.data[top]
-            
         # rename whatever our top column is called to z and make it an index
-        snowprofile = xr.Dataset(self.data.rename({top: 'z'}, axis = 1).set_index('z'),
+        snowprofile = SnowProfile(data_vars = self.data.rename({top: 'z'}, axis = 1).set_index('z'),
                     # set coords for x, y, time, z
-                    coords = coords).assign_coords(bottom = ('z', bottom))
+                    coords = coords, attrs = self.metadata).assign_coords(bottom = ('z', bottom))
 
-        snowprofile.attrs = self.metadata
+        # snowprofile.attrs = self.metadata
         snowprofile.attrs['units'] = self.units
 
         # add in units to dimensions

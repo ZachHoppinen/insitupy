@@ -79,22 +79,22 @@ class SnowProfile:
 
         # either use average density, or average all available densities.
 
-        density_vars = [v for v in self.vars if 'dens' in v]
-        assert density_var, f'No density variables found in {self.vars}'
+        # density_vars = [v for v in self.vars if 'dens' in v]
+        # assert density_var, f'No density variables found in {self.vars}'
 
-        if len(density_var) > 1:
-            ave_den_vars = [d for d in density_var if 'avg' in d or 'ave' in d]
+        # if len(density_var) > 1:
+        #     ave_den_vars = [d for d in density_var if 'avg' in d or 'ave' in d]
 
-            if len(ave_den_vars) == 1:
-                density_var = ave_den_vars
+        #     if len(ave_den_vars) == 1:
+        #         density_var = ave_den_vars
 
             
-            a_den_vars = [d for d in density_var if '_a' in d or 'a_' in d]
+        #     a_den_vars = [d for d in density_var if '_a' in d or 'a_' in d]
 
-            if len(a_den_vars) == 1:
-                density_var = a_den_vars
+        #     if len(a_den_vars) == 1:
+        #         density_var = a_den_vars
             
-        density_var = density_var[0]
+        # density_var = density_var[0]
         
         # next find heights of each layer
 

@@ -361,7 +361,7 @@ class CSVReader(Reader):
 
     def _parse_header_symbol(self):
 
-        assert len(self.lines) > 0, f'Did not find any lines in files {filepath}'
+        assert len(self.lines) > 0, f'Did not find any lines in files {self._filepath}'
 
         if self.lines[0][0] in self.SYMBOLS:
             LOG.debug(f"Found header symbol {self.lines[0][0]}")
@@ -372,7 +372,7 @@ class CSVReader(Reader):
     
     def _parse_header_sep(self):
 
-        assert len(self.lines) > 0, f'Did not find any lines in files {filepath}'
+        assert len(self.lines) > 0, f'Did not find any lines in files {self._filepath}'
 
         # search through possible symbols and find most comment character to identify seperator
         symbol_count = {}

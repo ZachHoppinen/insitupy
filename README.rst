@@ -14,10 +14,6 @@ Insitupy
         :alt: Documentation Status
 
 
-![alt text](https://github.com/ZachHoppinen/insitupy/blob/main/images/DALL_E_data_snowpit.jpeg)
-
-
-
 Manage reading and analyzing raw files of insitu data. The goal is to get
 raw insitu data files into xarray dataset based objects with helpful functions 
 to facilitate large scale data storage, sorting, and analysis of snow insitu

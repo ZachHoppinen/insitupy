@@ -14,7 +14,7 @@ Insitupy
         :alt: Documentation Status
 
 
-![alt text](https://github.com/zachhoppinen/insitupy/blob/main/images/DALL_E_data_snowpit)
+![alt text](https://github.com/ZachHoppinen/insitupy/blob/main/images/DALL_E_data_snowpit.jpeg)
 
 
 

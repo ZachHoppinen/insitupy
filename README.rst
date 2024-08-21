@@ -1,5 +1,5 @@
 ========
-loomsitu
+Insitupy
 ========
 
 
@@ -14,11 +14,14 @@ loomsitu
         :alt: Documentation Status
 
 
+![alt text](https://github.com/zachhoppinen/insitupy/blob/main/images/DALL·E_data_snowpit)
+
 
 
 Manage reading and analyzing raw files of insitu data. The goal is to get
-raw insitu data files into manageable classes with helpful functions and provide
-access to the data as xarray dataset based objects.
+raw insitu data files into xarray dataset based objects with helpful functions 
+to facilitate large scale data storage, sorting, and analysis of snow insitu
+measurements.
 
 The first application of this will be for SnowEx pit data.
 
@@ -39,7 +42,7 @@ Used Instruments
 --------
 
 * SMP
-* 
+* Snowpits
 
 Credits
 -------
@@ -48,4 +51,4 @@ This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypack
 
 .. _Cookiecutter: https://github.com/audreyr/cookiecutter
 .. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
-.. xarray: https://github.com/pydata/xarray
+.. _xarray: https://github.com/pydata/xarray

@@ -19,6 +19,7 @@ from insitupy.util.plotting import plot_profile
 
 LOG = logging.getLogger(__name__)
 
+# https://docs.xarray.dev/en/stable/internals/extending-xarray.html
 @xr.register_dataset_accessor("snow")
 class SnowProfile:
 

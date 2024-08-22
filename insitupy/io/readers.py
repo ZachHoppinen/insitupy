@@ -9,12 +9,20 @@ from pathlib import Path
 import string
 import logging
 import shutil
+import ast
+from datetime import datetime
 
 import random
+from types import NoneType
 
 import numpy as np
 import pandas as pd
 import xarray as xr
+
+from pandas import NaT
+from pandas._libs.tslibs.nattype import NaTType
+from pandas.errors import EmptyDataError
+from pandas._libs.tslibs.parsing import DateParseError
 
 from insitupy.util.strings import StringManager
 from insitupy.core.profiles import SnowProfile
@@ -24,7 +32,7 @@ LOG = logging.getLogger(__name__)
 class Reader:
 
     # list of acceptable extensions to check for
-    EXTENSIONS = [".csv", ".xls"]
+    EXTENSIONS = [".csv", ".xls", ".nc"]
     ID_NAMES = ["pitid", "pit_id"]
     Y_NAMES = ["lat", "latitude", 'y', 'northing']
     X_NAMES = ["lon", "lon", "longitude", "long", "x", 'easting']
@@ -283,7 +291,78 @@ class Reader:
     def parse(self):
 
         raise NotImplementedError
+
+class NETCDFReader(Reader):
+
+    def __init__(self, filepath):
+        Reader.__init__(self, filepath)
+
+    def create_snowprofile(self):
+
+        snowprofile = xr.open_dataset(self._filepath)
+
+        snowprofile.attrs = self._decode_attrs(snowprofile.attrs)
+        for v in snowprofile.data_vars: snowprofile[v].attrs = self._decode_attrs(snowprofile[v].attrs)
+
+        return snowprofile
+
+    def _decode_attrs(self, attrs):
+        decoded_strs = {}
+        for k, v in attrs.items():
+            
+            decoded = v
+            if isinstance(v, str):  
+                try:
+                    decoded = eval(v)
+                except (SyntaxError, NameError, EmptyDataError):    
+                    pass
+                try:
+                    decoded = pd.to_datetime(v)
+                    if np.isnat(decoded):
+                        decoded = ""
+                except (DateParseError, ValueError, TypeError):
+                    pass
+            if isinstance(decoded, NaTType):
+                 decoded = ""
+            
+            decoded_strs[k] = decoded
+
+        return decoded_strs
+
+    def encode_attrs(attrs):
+        """
+        encode attributes as strings, arrays, or numbers for saving to netcdf
+        """
+        encoded_strs = {}
+        for k, v in attrs.items():
+            coded = v
+            if isinstance(v, dict) or isinstance(v, list) or isinstance(v, complex):
+                coded = str(v)
+            if isinstance(v, pd.Series):
+                coded = v.values
+            if isinstance(v, pd.DataFrame):
+                coded = v.values
+            
+            if isinstance(v, datetime):
+                coded = str(v)
+            
+            if isinstance(coded, NoneType):
+                coded = ''
+            
+            if not any(isinstance(coded, netcdftype) for netcdftype in [str, np.ndarray, int, float, complex, list, tuple]):
+                print(coded)
+
+            if isinstance(coded, str):
+                coded = coded.strip('" "').replace('\\','_').replace('/','')
+
+            encoded_strs[k.strip('" "').replace('\\','_').replace('/','')] = coded
         
+        return encoded_strs
+
+
+
+
+
 class CSVReader(Reader):
 
     SYMBOLS = string.printable[62:94]
@@ -496,7 +575,7 @@ def check_consecutive(l):
     """
     return l == list(range(min(l), max(l)+1))
 
-def from_file(filepath):
+def from_file(filepath) -> xr.Dataset:
     f"""
     Reads in an appropriate file into a Insitupy SnowProfile object.
 
@@ -506,9 +585,9 @@ def from_file(filepath):
         Filepath: str or Path
     
     Return
-        Snowprofile object containing metadata in .attrs and data as variables.
+        xarray dataset containing metadata in .attrs and data as variables.
     """
-    READERS = {'.csv': CSVReader}
+    READERS = {'.csv': CSVReader, '.nc': NETCDFReader}
 
     # does same basic filepath checking and conversion for us
     reader = Reader(filepath)
@@ -518,7 +597,7 @@ def from_file(filepath):
 
     # parse out data and metadata
     reader = reader(filepath)
-    reader.parse()
+    # reader.parse()
 
     snowprofile = reader.create_snowprofile()
 

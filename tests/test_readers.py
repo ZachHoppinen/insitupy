@@ -2,7 +2,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from insitupy.io.readers import Reader, CSVReader, check_consecutive
+from pandas import Timestamp, NaT
+
+from pandas.testing import assert_frame_equal
+
+from insitupy.io.readers import Reader, CSVReader, NETCDFReader, check_consecutive
 
 pit1metadata = {"PitID": "COERAP_20200427_0845", "Date/Local Standard Time": pd.Timestamp("2020-04-27T08:45:00"),\
     "Latitude": 38.92524, "Longitude": -106.97112, "utm": "13", "Site": "Aspen",\
@@ -43,6 +47,96 @@ class TestReaders:
         with pytest.raises(error):
             Reader(data_path.joinpath(fname))
 
+class TestNETCDFReader:
+    """
+    Tests of NetCDF reader to read in datafiles and parse attributes
+    """
+
+    @pytest.fixture
+    def reader(self, fname, data_path):
+        reader = NETCDFReader(data_path.joinpath(fname))
+        return reader
+    
+    @pytest.fixture
+    def ds(self, reader):
+        ds = reader.create_snowprofile()
+        return ds
+    
+    @pytest.mark.parametrize("fname",
+        ["SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc"])
+    
+    def test_exists(self, reader):
+        assert type(reader) == NETCDFReader
+
+    @pytest.mark.parametrize("fname, expected",
+        [("SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc",
+        ['avg_density', 'comments', 'density_a', 'density_b', 'grain_size',\
+        'grain_type', 'hand_hardness','lwc_vol_a','lwc_vol_b',\
+        'manual_wetness', 'permittivity_a', 'permittivity_b', 'temperature'])])
+    
+    def test_variables(self, ds, expected):
+        assert list(ds.data_vars) == expected
+    
+    @pytest.mark.parametrize("fname, expected",
+        [("SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc",
+        {'Location': 'Grand Mesa',
+        'Site': 'Skyway Open',
+        'PitID': 'COGMSO_20200422_1512',
+        'DateLocal Standard Time': Timestamp('2020-04-22 15:12:00'),
+        'UTM Zone': '12N',
+        'Easting': np.float64(754251.0),
+        'Northing': np.float64(4325772.0),
+        'Latitude': np.float64(39.04404),
+        'Longitude': np.float64(-108.06224),
+        'Flags': "",
+        'Pit Comments': '111-101 and 101-91 cm density lots of water percolating. Temp. start 16:12  Temp end 1619',
+        'Parameter Codes': 'na for this parameter',
+        'x_coord_name': 'Longitude',
+        'y_coord_name': 'Latitude',
+        'id_coord_name': 'PitID',
+        'units': {'depth': ['cm'], 'temperature': ['deg C']}})])
+    
+    def test_attrs(self, ds, expected):
+        assert ds.attrs == expected
+    
+    @pytest.mark.parametrize("fname, expected",
+        [("SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc",
+        np.array([111., 101., 91., 81., 71., 61., 51., 41., 31., 21., 11., 1.]))])
+    
+    def test_bottom_density(self, ds, expected):
+        assert np.array_equal(ds['avg_density'].attrs['bottom'], expected)
+    
+    @pytest.mark.parametrize("fname, expected",
+        [("SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc",
+        np.array([115., 99., 97., 94., 91., 80., 75., 56., 42., 10., 0.]))])
+    def test_bottom_layer(self, ds, expected):
+        assert np.array_equal(ds['hand_hardness'].attrs['bottom'], expected)
+    
+    @pytest.mark.parametrize("fname, expected",
+        [("SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc",
+        ['z', 'x', 'y', 'id', 'time'])])
+    def test_indexes(self, ds, expected):
+        assert list(ds.indexes) == expected
+    
+    @pytest.mark.parametrize("fname, expected",
+        [("SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc",
+        [0., 10., 11., 20., 21.])])
+    def test_zs(self, ds, expected):
+        assert list(ds.z.data) == expected
+
+    @pytest.mark.parametrize("fname, attrs, expected",
+    [("SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc", 
+    {"a": "a", "b": "1", "c": "[1,2,3]","d":'{"a":1}'},\
+    {"a": "a", "b": 1, "c": [1,2,3], "d":{"a":1}})])
+    def test_decoder_numbers(self, reader, attrs, expected):
+        assert expected == reader._decode_attrs(attrs)
+    
+    @pytest.mark.parametrize("fname, attrs, expected",
+    [("SNEX20_TS_SP_20200422_1512_COGMSO_data_v02.nc", 
+    {"a": '2020-01-02'},\
+    {"a": pd.to_datetime('2020-01-02')})])
+    def test_decoder_datetime(self, reader, attrs, expected):
+        assert expected == reader._decode_attrs(attrs)
 
 class TestCSVReader:
     """
@@ -52,7 +146,6 @@ class TestCSVReader:
     @pytest.fixture
     def reader(self, fname, data_path):
         reader = CSVReader(data_path.joinpath(fname))
-        reader.parse()
         return reader
 
     @pytest.mark.parametrize("fname",
@@ -120,6 +213,7 @@ class TestCSVReader:
     def test_units(self, reader, expected):
         for k, v in  reader.units.items():
             assert v == expected[k]
+
 
     strat_data = pd.DataFrame(
     [[116.0,96.5,"< 1 mm","DF","F","D","Some rounds"],

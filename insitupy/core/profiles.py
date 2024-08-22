@@ -26,10 +26,54 @@ class SnowProfile:
     def __init__(self, xarray_obj: Union[xr.DataArray, xr.Dataset], clean = True):
         self._obj: Union[xr.DataArray, xr.Dataset] = xarray_obj
 
-        self._bottom = {}
+        self._samples = {}
 
         self._wet = False
         self._total_swe = False
+        self._snow_vars = {}
+
+        # self._obj = self.clean_profile()
+    
+    def parse_snow_vars(self):
+        """
+        Find/identify variables and # iterations for standard measurements
+        that are used in other snowprofile functionality:
+        - density
+        - temp
+        - hand hardness
+        - grain type/size
+        - lwc
+
+        returns:
+            dictionary of known variables with inner dictionary of exists, iterations, and names
+        """
+
+        known_var_names = ['density','temp','hardness', 'grain_type','grain_size','lwc']
+
+        for known_var in known_var_names:
+            for var in [v.lower() for v in self.vars]:
+                self._snow_vars[known_var] =  {'exists': self._is_variable(known_var), \
+                'n_iterations': self._number_iterations(known_var), \
+                'var_names': self._get_var_names(known_var)}
+
+    def _is_variable(self, var_name):
+        if len(self._get_var_names(var_name)) == 0:
+            return False
+        else:
+            return True
+        
+    def _number_iterations(self, var_stem):
+        
+        observation_vars = self._get_var_names(var_stem)
+
+        return len(observation_vars)
+    
+    def _get_var_names(self, var_stem):
+        
+        observation_vars = [v for v in self.vars if var_stem.lower() in v.lower()]
+
+        return observation_vars
+
     
     def _get_obj(self, inplace: bool = True) -> Union[xr.Dataset]:
         """
@@ -48,6 +92,10 @@ class SnowProfile:
             return self._obj
         obj_copy = self._obj.copy(deep=True)
         # preserve attribute information
+        obj_copy.snow._snow_vars = self.snow_vars
+        obj_copy.snow._total_swe = self._total_swe
+        obj_copy.snow._wet_dry = self._wet_dry
+
         return obj_copy
 
     @property
@@ -55,11 +103,12 @@ class SnowProfile:
         """list: Returns non-coordinate varibles"""
         return list(self._obj.data_vars)
     
-    @property 
-    def bottom(self) -> list:
-        if not self._bottom:
-            self._bottom = {}
-        return self._bottom
+    @property
+    def snow_vars(self) -> dict:
+        """list: Returns non-coordinate varibles"""
+        if not self._snow_vars:
+            self.parse_snow_vars()
+        return self._snow_vars
     
     @property 
     def total_swe(self):
@@ -73,33 +122,76 @@ class SnowProfile:
             self._wet_dry = self._get_wet_dry()
         return self._wet_dry
     
+    @property
+    def samples(self) -> dict:
+        if not self._samples:
+            self._get_sampling()
+        return self._samples
+    
+    def _get_sampling(self) -> dict:
+        self._samples = {}
+        for var in self.vars:
+            # if we didn't save sampling heights
+            if 'samples' not in self._obj[var].attrs:
+                self._samples[var] = pd.Series()
+            else:
+                self._samples[var] = self._obj[var].attrs['samples']
+
+
     def _get_total_swe(self):
-
-        raise NotImplementedError
-
-        # either use average density, or average all available densities.
-
-        # density_vars = [v for v in self.vars if 'dens' in v]
-        # assert density_var, f'No density variables found in {self.vars}'
-
-        # if len(density_var) > 1:
-        #     ave_den_vars = [d for d in density_var if 'avg' in d or 'ave' in d]
-
-        #     if len(ave_den_vars) == 1:
-        #         density_var = ave_den_vars
-
-            
-        #     a_den_vars = [d for d in density_var if '_a' in d or 'a_' in d]
-
-        #     if len(a_den_vars) == 1:
-        #         density_var = a_den_vars
-            
-        # density_var = density_var[0]
         
-        # next find heights of each layer
+        data_obj = self._get_obj()
 
-        # next multiply all together for total SWE.
-        # self._obj[density_vars] = 
+        # get all density variables
+        d_vars = self._get_var_names('density')
+
+        # remove variables with all nans
+        for v in d_vars:
+            if data_obj[v].count() == 0:
+                d_vars.remove(v) 
+        
+        # if we have no density left return nan
+        if len(d_vars) == 0:
+            LOG.info(f"No density found for {self._obj}")
+            return np.nan
+        
+        # if we have 1 left use that variable
+        if len(d_vars) == 1:
+            d_var = d_vars[0]
+
+        # if we have mulitple variables with density
+        if len(d_vars) > 1:
+            # use average variable if available
+            if any([('avg' in v) or ('ave' in v) for v in d_vars]):
+                d_var = [v for v in d_vars if ('avg' in v) or ('ave' in v)][0]
+
+            # else average remaining variables to new array and bring attributes
+            else:
+                data_obj['new_mean_density'] = data_obj[d_vars].to_array(dim='new').mean('new')
+                data_obj['new_mean_density'].attrs = data_obj[d_vars[0]].attrs
+                # re run get sampling to ensure we have the new attribute
+                self._get_sampling()
+                d_var = 'new_mean_density'
+        
+        da = data_obj[d_var]
+        da = da.dropna('z')
+        
+        # get sample heights from sampling strategy attribute
+        sample_hs = []
+        for top, bottom in self.samples[d_var].items():
+            if top not in da.z: continue
+            sample_hs.append(top - bottom)
+        
+        assert len(sample_hs) == len(da), f"Found different numbers of samples ({len(sample_hs)})\
+             and data variable observations {len(da)}."
+        
+        water_density = 997 # kg/m3
+        assert da.mean() > 1, f"Density units below 1. Convert to kg/m3."
+        
+        # get total swe as the sum of each layer height by density / h20 density
+        _total_swe = np.sum(da.data * sample_hs / water_density)
+        # not final units are in whatever sampling units are
+        return _total_swe
 
     def _get_wet_dry(self):
 
@@ -113,6 +205,9 @@ class SnowProfile:
         1. masking known nan values
         2. droppping empty variables
         3. removing identical variables
+
+        Returns
+        xarray.dataset
         """
 
         
@@ -129,14 +224,14 @@ class SnowProfile:
         Using this: https://github.com/corteva/rioxarray/blob/25fbbce8612ba9a38786a67dc56d24c7d8f79db7/rioxarray/raster_dataset.py#L250
         as reference.
         """
-        cleaned_dataset = xr.Dataset(coords = self._obj.coords, attrs=self._obj.attrs)
+        # cleaned_dataset = xr.Dataset(coords = self._obj.coords, attrs=self._obj.attrs)
 
         NANVALUES = [-9999, '', 'nan', -9999.0, '-9999']
 
         i = False
         for nanval in NANVALUES:
             if not i:
-                cleaned_dataset = self._obj.copy().where(self._obj != nanval)
+                cleaned_dataset = self._obj.copy().where(self._obj.copy() != nanval)
                 i = True
                 continue
             cleaned_dataset = cleaned_dataset.where(cleaned_dataset != nanval)

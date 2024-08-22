@@ -161,19 +161,23 @@ class Reader:
 
         # check if there is a bottom column or just assign top column to be depth
         if len(bottom_cols) == 1:
+            bottom_col = bottom_cols[0]
             bottom = self.data[bottom_cols[0]]
             self._data = self.data.drop(bottom_cols[0], axis = 1) 
         else:
+            bottom_col = top
             bottom = self.data[top]
 
         # rename whatever our top column is called to z and make it an index
         snowprofile = xr.Dataset(data_vars = self.data.rename({top: 'z'}, axis = 1).set_index('z'),
                     # set coords for x, y, time, z
                     coords = coords, attrs = self.metadata)#.assign_coords(bottom = ('z', bottom))
+                    # last line adds a coordinate bottom that holds bottom values
 
+        # get bottom information and add to attributions
         for var in snowprofile.data_vars:
-            snowprofile.snow.bottom[var] = bottom
-            snowprofile[var].attrs['bottom'] = bottom
+            snowprofile.snow.samples[var] = bottom
+            snowprofile[var].attrs['samples'] = bottom.set_axis(self.data[top])
 
         snowprofile.attrs['units'] = self.units
 
@@ -184,6 +188,7 @@ class Reader:
             else:
                 snowprofile.z.attrs['units'] = None
         
+        # add in coord names used
         for coord_name in ['x','y','id']:
             if self.metadata[f'{coord_name}_coord_name'] in self.units:
                 snowprofile[coord_name].attrs['units'] = self.units[self.metadata[f'{coord_name}_coord_name']]
@@ -191,8 +196,10 @@ class Reader:
             
             snowprofile[coord_name].attrs['units'] = ''
         
-        snowprofile['time'].attrs['units'] = ''
+        # this might be giving us problems with .netcdf()
+        # snowprofile['time'].attrs['units'] = ''
 
+        # find long names and save for plitting
         for coord_name in ['x', 'y','id']:
             snowprofile[coord_name].attrs['long_name'] = self.metadata[f'{coord_name}_coord_name']
         snowprofile['z'].attrs['long_name'] = 'Snow Height'

@@ -167,7 +167,7 @@ def plot_profile(profile: xr.Dataset):
             da = da.dropna('z')
 
             # sort bottom appropriately
-            bottom = profile[var].attrs['bottom']
+            bottom = profile[var].attrs['samples'].values
             if is_ascending(da.z.data):
                 if not is_ascending(np.array(bottom)):
                     bottom = reversed(bottom)

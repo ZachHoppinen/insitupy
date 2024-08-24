@@ -54,6 +54,12 @@ class Reader:
         assert filepath.suffix in self.EXTENSIONS, f'Filepath {filepath} does not contain recognized extension of options {self.EXTENSIONS}.'
 
         self._filepath = filepath
+
+        # resampling thickness
+        self.thickness = 0
+
+        #top and bottom columns
+        self._top_col, self._bottom_col = None, None
     
     @property
     def filepath(self):
@@ -78,6 +84,18 @@ class Reader:
     @property
     def data(self):
         return self._data
+    
+    @property
+    def top_col(self):
+        if not self._top_col:
+            self._top_col = self._parse_height_columns()[0]
+        return self._top_col
+    
+    @property
+    def bottom_col(self):
+        if not self._bottom_col:
+            self._bottom_col = self._parse_height_columns()[1]
+        return self._bottom_col
 
     def read_lines(self, filepath  = None):
         """
@@ -138,17 +156,8 @@ class Reader:
             metadata[kl] = v
         
         return metadata
-
-    def create_snowprofile(self):
-        """
-        Generates a snowpit xarray object from data and metadata
-        """
-
-        assert(len(self.data) > 0), f'No data found to create snowpit from for file {self.filepath}.'
-
-        coords = self._parse_coords(self.metadata)
-        coords = {k:[v] for k, v in coords.items()}
-
+    
+    def _parse_height_columns(self):
         # identify layers
         top_cols = [c for c in self.data.columns if c.lower() in self.TOP_NAMES]
         bottom_cols = [c for c in self.data.columns if c.lower() in self.BOTTOM_NAMES]
@@ -157,36 +166,110 @@ class Reader:
 
         assert len(bottom_cols) < 2, f'Too many colummns parsed for bottom column for {self.filepath} out of columns: {self.data.columns}'
 
-        top = top_cols[0]
+        top_col = top_cols[0]
 
         # check if there is a bottom column or just assign top column to be depth
         if len(bottom_cols) == 1:
             bottom_col = bottom_cols[0]
             bottom = self.data[bottom_cols[0]]
-            self._data = self.data.drop(bottom_cols[0], axis = 1) 
+            # self._data = self.data.drop(bottom_cols[0], axis = 1) 
         else:
-            bottom_col = top
-            bottom = self.data[top]
+            bottom_col = top_col
+            # bottom = self.data[top]
+        
+        return top_col, bottom_col
+    
+    def _reindex_top_only(self):
+        # if we have only one z column we assume our values span
+        # to mid points of observations
+        non_z_cols = [x for x in reader.columns if (x != self.top_col) and (x != self.bottom_col)]
+
+        reindex = np.arange(0, max(reader.data[top_col])+ self.thickness, self.thickness)
+        resampled_data = pd.DataFrame(index = reindex, columns = non_z_cols)
+
+        assert self.top_col == self.bottom_col, f"Bottom column {self.bottom_col} doesn't match top column {self.top_col}"
+
+        first = True
+        z_data = reader.data[self.top_col]
+        for top, middle, bottom in zip(z_data, z_data.iloc[1:], z_data.iloc[2:]):
+            mid_upper = np.nanmean([top, middle])
+            mid_lower = np.nanmean([middle, bottom])
+            if bottom == reader.data[reader.top_col].iloc[-1]: mid_lower = bottom
+            if first: mid_upper = top; first = False
+            resampled_data.loc[mid_lower:mid_upper, mid_upper] = reader.data.loc[reader.data['depth'] == middle, mid_upper].values
+
+        return resampled_data
+    
+    def _reindex_top_bottom_cols(self):
+        non_z_cols = [x for x in self.columns if (x != self.top_col) and (x != self.bottom_col)]
+        reindex = np.arange(0, max(self.data[self.top_col])+ self.thickness, self.thickness)
+        resampled_data = pd.DataFrame(index = reindex, columns = non_z_cols)
+
+        LOG.info(f"Using top column: {self.top_col} and bottom column: {self.bottom_col}.")
+
+
+        for top, bottom in zip(self.data[self.top_col], self.data[self.bottom_col]):
+            resampled_data.loc[bottom:top, non_z_cols] = self.data.loc[self.data[self.top_col] == top, non_z_cols].values
+
+        return resampled_data
+    
+    def _resample_data(self):
+        
+        if self.top_col == self.bottom_col:
+            resampled_data = self._reindex_top_only() 
+        else:
+            resampled_data = self._reindex_top_bottom_cols() 
+        
+        resampled_data.index.name = 'z'
+
+        # try and set data to floats if possible
+        for col in resampled_data:
+            try:
+                resampled_data[col] = resampled_data.loc[:, col].astype(float)
+            except ValueError:
+                LOG.info(f'Unable to convert column {col} to float')
+                pass
+
+        return resampled_data
+
+
+    def create_snowprofile(self, thickness: float = 1) -> xr.Dataset:
+        """
+        Generates a snowpit xarray object from data and metadata
+
+        Args:
+            #TODO autoidentify correct thickness from units?
+            thickness [default = 1]: thickness to resample snowprofile to
+
+        Returns:
+
+            snowprofile: xarray dataset with 
+        """
+
+        self.thickness = thickness
+
+        assert(len(self.data) > 0), f'No data found to create snowpit from for file {self.filepath}.'
+
+        coords = self._parse_coords(self.metadata)
+        coords = {k:[v] for k, v in coords.items()}
+
+        self._top_col, self._bottom_col = self._parse_height_columns()
+
+        resampled_data = self._resample_data()
+
+        print(resampled_data.dtypes)
 
         # rename whatever our top column is called to z and make it an index
-        snowprofile = xr.Dataset(data_vars = self.data.rename({top: 'z'}, axis = 1).set_index('z'),
+        snowprofile = xr.Dataset(data_vars= resampled_data,
                     # set coords for x, y, time, z
-                    coords = coords, attrs = self.metadata)#.assign_coords(bottom = ('z', bottom))
-                    # last line adds a coordinate bottom that holds bottom values
+                    coords = coords, attrs = self.metadata)
 
         # get bottom information and add to attributions
-        for var in snowprofile.data_vars:
-            snowprofile.snow.samples[var] = bottom
-            snowprofile[var].attrs['samples'] = bottom.set_axis(self.data[top])
+        # for var in snowprofile.data_vars:
+        #     snowprofile.snow.samples[var] = bottom
+        #     snowprofile[var].attrs['samples'] = bottom.set_axis(self.data[top])
 
         snowprofile.attrs['units'] = self.units
-
-        # add in units to dimensions
-        if top in self.units.keys():
-            if top in self.units.keys():
-                snowprofile.z.attrs['units'] = self.units[top][0]
-            else:
-                snowprofile.z.attrs['units'] = None
         
         # add in coord names used
         for coord_name in ['x','y','id']:

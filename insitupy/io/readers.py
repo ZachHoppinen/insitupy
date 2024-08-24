@@ -233,13 +233,13 @@ class Reader:
         return resampled_data
 
 
-    def create_snowprofile(self, thickness: float = 1) -> xr.Dataset:
+    def create_snowprofile(self, thickness: float = 0.5) -> xr.Dataset:
         """
         Generates a snowpit xarray object from data and metadata
 
         Args:
             #TODO autoidentify correct thickness from units?
-            thickness [default = 1]: thickness to resample snowprofile to
+            thickness [default = 0.5]: thickness to resample snowprofile to
 
         Returns:
 

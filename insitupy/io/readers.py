@@ -180,23 +180,24 @@ class Reader:
         return top_col, bottom_col
     
     def _reindex_top_only(self):
+        # TODO change to nans between observation points
         # if we have only one z column we assume our values span
         # to mid points of observations
-        non_z_cols = [x for x in reader.columns if (x != self.top_col) and (x != self.bottom_col)]
+        non_z_cols = [x for x in self.columns if (x != self.top_col) and (x != self.bottom_col)]
 
-        reindex = np.arange(0, max(reader.data[top_col])+ self.thickness, self.thickness)
+        reindex = np.arange(0, max(self.data[self.top_col])+ self.thickness, self.thickness)
         resampled_data = pd.DataFrame(index = reindex, columns = non_z_cols)
 
         assert self.top_col == self.bottom_col, f"Bottom column {self.bottom_col} doesn't match top column {self.top_col}"
 
         first = True
-        z_data = reader.data[self.top_col]
+        z_data = self.data[self.top_col]
         for top, middle, bottom in zip(z_data, z_data.iloc[1:], z_data.iloc[2:]):
             mid_upper = np.nanmean([top, middle])
             mid_lower = np.nanmean([middle, bottom])
-            if bottom == reader.data[reader.top_col].iloc[-1]: mid_lower = bottom
+            if bottom == self.data[self.top_col].iloc[-1]: mid_lower = bottom
             if first: mid_upper = top; first = False
-            resampled_data.loc[mid_lower:mid_upper, mid_upper] = reader.data.loc[reader.data['depth'] == middle, mid_upper].values
+            resampled_data.loc[mid_lower:mid_upper, non_z_cols] = self.data.loc[self.data['depth'] == middle, non_z_cols].values
 
         return resampled_data
     
@@ -214,6 +215,9 @@ class Reader:
         return resampled_data
     
     def _resample_data(self):
+        """
+        reindex data to either 
+        """
         
         if self.top_col == self.bottom_col:
             resampled_data = self._reindex_top_only() 
@@ -227,7 +231,7 @@ class Reader:
             try:
                 resampled_data[col] = resampled_data.loc[:, col].astype(float)
             except ValueError:
-                LOG.info(f'Unable to convert column {col} to float')
+                LOG.debug(f'Unable to convert column {col} to float')
                 pass
 
         return resampled_data
@@ -256,8 +260,6 @@ class Reader:
         self._top_col, self._bottom_col = self._parse_height_columns()
 
         resampled_data = self._resample_data()
-
-        print(resampled_data.dtypes)
 
         # rename whatever our top column is called to z and make it an index
         snowprofile = xr.Dataset(data_vars= resampled_data,
@@ -440,7 +442,7 @@ class NETCDFReader(Reader):
                 coded = ''
             
             if not any(isinstance(coded, netcdftype) for netcdftype in [str, np.ndarray, int, float, complex, list, tuple]):
-                print(coded)
+                LOG.info(f'Is not known type for encoding: {coded}')
 
             if isinstance(coded, str):
                 coded = coded.strip('" "').replace('\\','_').replace('/','')
